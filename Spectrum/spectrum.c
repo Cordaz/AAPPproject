@@ -78,7 +78,7 @@ int main (int argc, char * argv[]) {
    //Counter update procedure
    //Check if necessary (< m)
    count = counter[arrayIndex];
-   count = count << INTSIZE - frame;
+   count = count << (INTSIZE - frame);
    count = count >> INTSIZE;
    //Now count contains the wanted count
    if(count < m) {
@@ -92,6 +92,36 @@ int main (int argc, char * argv[]) {
    
    //Start of writing output section
    //Need to reconstruct the counted sequence from the encoding
+   unsigned long int tmp;
+   for(arrayIndex=0; arrayIndex < SPECTRUM_SIZE; arrayIndex++) {
+      count = counter[arrayIndex];
+      count = count << (INTSIZE - frame);
+      count = count >> INTSIZE;
+      if(count >= m) {
+         for(i=0;i<l;i++) {
+            tmp = arrayIndex >> (l*2 - i*2 - 2);
+            switch(tmp) {
+               case A:
+                  tuple[i] = 'A';
+                  break;
+               case C:
+                  tuple[i] = 'C';
+                  break;
+               case G:
+                  tuple[i] = 'G';
+                  break;
+               case T:
+                  tuple[i] = 'T';
+                  break;
+            }
+         }
+      }
+   }
+   //Here tuple contains the original sequence
+   //Transform in a string
+   tuple[l] = '\0';
+   
+   //Ready to write out
    
    return 0;
 }

@@ -159,8 +159,8 @@ int main (int argc, char * argv[]) {
    for(arrayIndex=0; arrayIndex < spectrum_size; arrayIndex++) {
       //For each index 4 sequence must be extracted
       for(i=0;i<l-1;i++) {
-         tmp = arrayIndex << (i*2);
-         tmp = tmp >> (l*2 - i*2 - 2);
+         tmp = arrayIndex << (sizeof(unsigned long int) - (l-1)*2 + i*2);
+         tmp = tmp >> (sizeof(unsigned long int) - 2);
          switch(tmp) {
             case A:
                tuple[i] = 'A';

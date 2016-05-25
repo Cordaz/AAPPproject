@@ -1,13 +1,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #define A 0 //00
 #define C 1 //01
 #define G 2 //10
 #define T 3 //11
 
-#define INTSIZE 16 //Compiler dependet... Fixed size? For now assume 16 bits
+#define INTSIZE 16
+#define INT64SIZE 64
 #define PARAM 4 //l, m, input file, output file
 
 #ifdef SILENT
@@ -52,9 +54,9 @@ int main (int argc, char * argv[]) {
    * So, from the address of the array cell and the frame (1,2,3 or 4)
    * we can find the original sequence.
    */
-   int16_t * counter;
-   unsigned long int arrayIndex;
-   if((!(counter = (int16_t *)malloc(sizeof(int16_t) * spectrum_size)))) {
+   uint16_t * counter;
+   uint64_t arrayIndex;
+   if((!(counter = (uint16_t *)malloc(sizeof(uint16_t) * spectrum_size)))) {
       printf("Error: allocation\n");
       exit(1);
    }
@@ -64,8 +66,8 @@ int main (int argc, char * argv[]) {
    
    //Addressing the counter
    unsigned short int frame;
-   unsigned long int adder;
-   int16_t count;
+   uint64_t adder;
+   uint16_t count;
    char * tuple;
    if(!(tuple = (char *)malloc(sizeof(char) * (l+1)))) {
       fprintf(stdout, "Error allocation\n");
@@ -154,25 +156,28 @@ int main (int argc, char * argv[]) {
    
    FILE * out;
    out = fopen(outputFile, "w");
-   unsigned long int tmp;
+   uint64_t tmp;
    //Start of writing output section
    for(arrayIndex=0; arrayIndex < spectrum_size; arrayIndex++) {
       //For each index 4 sequence must be extracted
       for(i=0;i<l-1;i++) {
-         tmp = arrayIndex << (sizeof(unsigned long int) - (l-1)*2 + i*2);
-         tmp = tmp >> (sizeof(unsigned long int) - 2);
+         tmp = arrayIndex;
+         //tmp = tmp << (INT64SIZE - i*2 - 2); //TODO - NOT WORKING...
+         //tmp = tmp >> (INT64SIZE - 2);
+         tmp = tmp >> (i*2);
+         tmp = tmp % 4;
          switch(tmp) {
             case A:
-               tuple[i] = 'A';
+               tuple[l-1-i] = 'A';
                break;
             case C:
-               tuple[i] = 'C';
+               tuple[l-1-i] = 'C';
                break;
             case G:
-               tuple[i] = 'G';
+               tuple[l-1-i] = 'G';
                break;
             case T:
-               tuple[i] = 'T';
+               tuple[l-1-i] = 'T';
                break;
          }
       }
@@ -182,7 +187,6 @@ int main (int argc, char * argv[]) {
          count = count << (INTSIZE - (j*4) - 4);
          count = count >> (INTSIZE - 4);
          if(count >= m) {
-            //Need to reconstruct the counted sequence from the encoding
             switch(j) {
                case A:
                   tuple[l-1] = 'A';
@@ -203,6 +207,7 @@ int main (int argc, char * argv[]) {
             fprintf(out, "%s\n", tuple);
          }
       }
+      //All 4 sequence indexed by "arrayIndex" writed
    }
    fclose(out);
    free(tuple);

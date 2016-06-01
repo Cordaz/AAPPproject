@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <math.h>
 
 #define A 0 //00
 #define C 1 //01
@@ -11,6 +12,7 @@
 #define INTSIZE 16
 #define INT64SIZE 64
 #define PARAM 4 //l, m, input file, output file
+#define BASES 4.0 //Need double
 
 #ifdef SILENT
 #define printf(...)
@@ -25,7 +27,7 @@ int main (int argc, char * argv[]) {
    int l; //lenght of l-tuple
    int m; //multiplicity
    int i, j;
-   unsigned int spectrum_size = 262144; // = (4^10) / 4 for now assuming l=10 fixed
+   const double spectrum_size = 1048576; //pow(BASES, (double)l);
    
    //Read parameters
    if(argc < PARAM+1) {
@@ -51,12 +53,11 @@ int main (int argc, char * argv[]) {
    
   /* Counter of occurences
    * The sequence is represented encoded in 2 bits for each character
-   * So, from the address of the array cell and the frame (1,2,3 or 4)
-   * we can find the original sequence.
+   * So, from the address of the array cell we can find the original sequence.
    */
-   uint16_t * counter;
+   uint8_t * counter;
    uint64_t arrayIndex;
-   if((!(counter = (uint16_t *)malloc(sizeof(uint16_t) * spectrum_size)))) {
+   if((!(counter = (uint8_t *)malloc(sizeof(uint8_t) * spectrum_size)))) {
       printf("Error: allocation\n");
       exit(1);
    }
@@ -65,9 +66,6 @@ int main (int argc, char * argv[]) {
    }
    
    //Addressing the counter
-   unsigned short int frame;
-   uint64_t adder;
-   uint16_t count;
    char * tuple;
    if(!(tuple = (char *)malloc(sizeof(char) * (l+1)))) {
       fprintf(stdout, "Error allocation\n");
@@ -78,13 +76,15 @@ int main (int argc, char * argv[]) {
    FILE * in;
    in = fopen(inputFile, "r");
    
+   int flag;
+   
    fgets(tuple, l+1, in);
    while (!feof(in)) {
       rm_newline(tuple);
-      //Tokenize touple
+      //Tokenize tuple
       arrayIndex = 0;
-      frame = 0;
-      for(i=0; i<l-1; i++) {
+      for(i=0, flag=0; i<l && !flag; i++) {
+         arrayIndex = arrayIndex << 2; //Move bit to left
          switch(tuple[i]) {
             case 'A':
                //Should add A (0)
@@ -98,41 +98,26 @@ int main (int argc, char * argv[]) {
             case 'T':
                arrayIndex += T;
                break;
+            default:
+               flag=1; //If the read contains an unknown bases (N) ignore
          }
-         if(i != l-2)
-            arrayIndex = arrayIndex << 2; //Move bit to left (if not last)
       }
-      //The last one indexes the frame
-      switch(tuple[l-1]) {
-         case 'A':
-            frame=A * 4;
-            break;
-         case 'C':
-            frame=C * 4;
-            break;
-         case 'G':
-            frame=G * 4;
-            break;
-         case 'T':
-            frame=T * 4;
-            break;
-      }
-      printf("Index: %lu, Frame: %u", arrayIndex, frame/4);
+      
+      
+      /*
+      //DEBUG
+      if(!flag && arrayIndex == 0)
+         fprintf(stdout, "Tuple: %s, index: %x, count: %d\n", tuple, arrayIndex, counter[arrayIndex]);
+      */
+      
       //Counter update procedure
       //Check if necessary (< m)
-      //Can't exceed 4 bits
-      count = counter[arrayIndex];
-      count = count << (INTSIZE - frame -4);
-      count = count >> (INTSIZE - 4);
-      //Now count contains the wanted count
-      if(count < m) {
-         //Preparing adder
-         adder=1;
-         adder = adder << frame; //Move the 1 of multiple of 4 position in the correct frame
-         counter[arrayIndex] += adder; //Add one;
+      if(!flag && counter[arrayIndex] < m) {
+         counter[arrayIndex]++;
       }
-      printf(", Count: %d\n", count);
+      printf("Tuple: %s, index: %x, count: %d\n", tuple, arrayIndex, counter[arrayIndex]);
       //tuple read, read next
+      fgets(tuple, l+1, in);
       fgets(tuple, l+1, in);
    }
    
@@ -141,73 +126,44 @@ int main (int argc, char * argv[]) {
    //End of counting section
    
    /*
-   //DEBUG: print count
-   for(arrayIndex=0; arrayIndex<spectrum_size; arrayIndex++) {
-      for(j=0; j<4; j++) {
-         count = counter[arrayIndex];
-         count = count << (INTSIZE - (j*4) - 4);
-         count = count >> (INTSIZE - 4);
-         fprintf(stdout, "%3d", count);
-      }
-      fprintf(stdout, "\n");
+   //DEBUG print counter
+   for(arrayIndex=0; arrayIndex < spectrum_size; arrayIndex++) {
+      fprintf(stdout, "Index: %x, counter: %d\n", arrayIndex, counter[arrayIndex]);
    }
    */
-   
    
    FILE * out;
    out = fopen(outputFile, "w");
    uint64_t tmp;
+   uint64_t mask;
    //Start of writing output section
    for(arrayIndex=0; arrayIndex < spectrum_size; arrayIndex++) {
-      //For each index 4 sequence must be extracted
-      for(i=0;i<l-1;i++) {
-         tmp = arrayIndex;
-         //tmp = tmp << (INT64SIZE - i*2 - 2); //TODO - NOT WORKING...
-         //tmp = tmp >> (INT64SIZE - 2);
-         tmp = tmp >> (i*2);
-         tmp = tmp % 4;
-         switch(tmp) {
-            case A:
-               tuple[l-1-i] = 'A';
-               break;
-            case C:
-               tuple[l-1-i] = 'C';
-               break;
-            case G:
-               tuple[l-1-i] = 'G';
-               break;
-            case T:
-               tuple[l-1-i] = 'T';
-               break;
-         }
-      }
-      tuple[l] = '\0'; //Terminate string
-      for(j=0; j<4; j++) {
-         count = counter[arrayIndex];
-         count = count << (INTSIZE - (j*4) - 4);
-         count = count >> (INTSIZE - 4);
-         if(count >= m) {
-            switch(j) {
+      if(counter[arrayIndex] >= m) {
+         printf("%x, count: %d", arrayIndex, counter[arrayIndex]);
+         for(i=0;i<l;i++) {
+            //Create mask
+            mask = 3; //11 binary
+            mask = mask << (i*2);
+            tmp = arrayIndex & mask;
+            tmp = tmp >> (i*2);
+            switch(tmp) {
                case A:
-                  tuple[l-1] = 'A';
+                  tuple[l-1-i] = 'A';
                   break;
                case C:
-                  tuple[l-1] = 'C';
+                  tuple[l-1-i] = 'C';
                   break;
                case G:
-                  tuple[l-1] = 'G';
+                  tuple[l-1-i] = 'G';
                   break;
                case T:
-                  tuple[l-1] = 'T';
+                  tuple[l-1-i] = 'T';
                   break;
             }
-            //tuple now is the reconstructed sequence
-            
-            //Ready to write out
-            fprintf(out, "%s\n", tuple);
          }
+         tuple[l] = '\0'; //Terminate string
+         fprintf(out, "%s\n", tuple);
       }
-      //All 4 sequence indexed by "arrayIndex" writed
    }
    fclose(out);
    free(tuple);

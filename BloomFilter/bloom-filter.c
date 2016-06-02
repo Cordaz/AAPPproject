@@ -14,14 +14,17 @@ unsigned long djb2_hash(unsigned char *str);
 
 int main (int argc, char* argv[]){		//File name (read), spectrum dimension, length of reads, file name (write)
 
-	FILE* fp, bf;
-	uint64_t* bloom;
-	int  i;								//Filter index
-	char* seq; 						//Read sequence
+	FILE* fp, * bf;
+	uint64_t* bloom;				//pointer to filter
+	unsigned long n;				//spectrum dimension 
+	int l; 						//length of read
+	char* seq; 					//Read sequence
 	
-	
+	n = atoi(argv[2]);
+	l = atoi(argv[3]);
+
 	//Allocate memory for Bloom Filter
-	if(!(bloom = (uint64_t*)malloc(atoi(argv[2])*sizeof(uint64_t)))){		//assigns 64*n bits
+	if(!(bloom = (uint64_t*)malloc(n*sizeof(uint64_t)))){		//assigns 64*n bits
 		fprintf(stdout, "Error: Not enough memory\n");
 		exit(1);
 	}
@@ -32,27 +35,30 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 		fprintf(stdout, "Error: File not found\n");
 		exit(1);
 	}
-	fgets(seq, atoi(argv[3]), fp);
-	if(!feof(fp)){
+	fgets(seq, l, fp);
+	if(feof(fp)){
 		fprintf(stdout, "Warning: Empty file\n");
 		exit(1);
 	}
 	
 	//Fill up the filter
 	while(!feof(fp)){
-		HashRead(bloom, seq, atoi(argv[2]));
+		HashRead(bloom, seq, n);
 		
-		fgets(seq, argv[3], fp);
+		fgets(seq, l, fp);
 	}
 	fclose(fp);
 	
 	bf = fopen(argv[4], "w+");
-	fputs(bloom, bf);
+	fprintf(bf, "%s", (char*)bloom);
 	fclose(bf);
+	
+	free(bloom);
 	
 	return 0;
 }
 
+//Sets bit into bloom filter
 void SetBit(uint64_t* filter, unsigned long i, unsigned long n){
 	unsigned long k = i/(64*n);
 	unsigned long pos = i%(64*n);
@@ -60,11 +66,12 @@ void SetBit(uint64_t* filter, unsigned long i, unsigned long n){
 	filter[k] |= 1 << pos;
 }
 
+//Takes the read and feeds it to hash functions
 void HashRead(uint64_t* filter, char* read, unsigned long n){
 	unsigned long i;
 	
 	i = djb2_hash((unsigned char*)read);
-	SetBit(filter, i, atoi(argv[2]));
+	SetBit(filter, i, n);
 }
 
 //Simple hash

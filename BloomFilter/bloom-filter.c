@@ -28,7 +28,8 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 		fprintf(stdout, "Error: Not enough memory\n");
 		exit(1);
 	}
-	bloom = 0;
+	for(int i=0; i<n; i++)
+		bloom[i]=0;
 	
 	//Try file
 	if(!(fp = fopen(argv[1], "r"))){
@@ -50,7 +51,8 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 	fclose(fp);
 	
 	bf = fopen(argv[4], "w+");
-	fprintf(bf, "%s", (char*)bloom);
+	for(int k=0; k<n; k++)
+		fprintf(bf, "%lu", bloom[k]);
 	fclose(bf);
 	
 	free(bloom);
@@ -60,8 +62,8 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 
 //Sets bit into bloom filter
 void SetBit(uint64_t* filter, unsigned long i, unsigned long n){
-	unsigned long k = i/(64*n);
-	unsigned long pos = i%(64*n);
+	unsigned long k = i % n;
+	unsigned long pos = i % 64;
 	
 	filter[k] |= 1 << pos;
 }

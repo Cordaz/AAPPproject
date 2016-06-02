@@ -8,7 +8,7 @@
 #endif
 
 void SetBit(uint64_t* filter, int i);
-void HashRead(uint64_t* filter, STRING read);
+void HashRead(uint64_t* filter, char* read);
 unsigned long djb2_hash(unsigned char *str);
 
 
@@ -17,7 +17,7 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 	FILE* fp, bf;
 	uint64_t* bloom;
 	int  i;								//Filter index
-	STRING seq; 						//Read sequence
+	char* seq; 						//Read sequence
 	
 	
 	//Allocate memory for Bloom Filter
@@ -60,7 +60,7 @@ void SetBit(uint64_t* filter, unsigned long i, unsigned long n){
 	filter[k] |= 1 << pos;
 }
 
-void HashRead(uint64_t* filter, STRING read, unsigned long n){
+void HashRead(uint64_t* filter, char* read, unsigned long n){
 	unsigned long i;
 	
 	i = djb2_hash((unsigned char)read);

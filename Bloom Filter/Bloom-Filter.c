@@ -7,8 +7,8 @@
 #define printf(...)
 #endif
 
-void SetBit(uint64_t* filter, int i);
-void HashRead(uint64_t* filter, char* read);
+void SetBit(uint64_t* filter, unsigned long i, unsigned long n);
+void HashRead(uint64_t* filter, char* read, unsigned long n);
 unsigned long djb2_hash(unsigned char *str);
 
 
@@ -21,32 +21,32 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 	
 	
 	//Allocate memory for Bloom Filter
-	if(!(bloom = (uint64_t*)malloc(argv[2]*sizeof(uint64_t))){		//assigns 64*n bits
+	if(!(bloom = (uint64_t*)malloc(atoi(argv[2])*sizeof(uint64_t)))){		//assigns 64*n bits
 		fprintf(stdout, "Error: Not enough memory\n");
 		exit(1);
 	}
 	bloom = 0;
 	
 	//Try file
-	if(!(fp = fopen(argv[1], r))){
+	if(!(fp = fopen(argv[1], "r"))){
 		fprintf(stdout, "Error: File not found\n");
 		exit(1);
 	}
-	fgets(seq, argv[3], fp);
-	if(seq == EOF){
-		fprintf(stdoud, "Warning: Empty file\n");
+	fgets(seq, atoi(argv[3]), fp);
+	if(!feof(fp)){
+		fprintf(stdout, "Warning: Empty file\n");
 		exit(1);
 	}
 	
 	//Fill up the filter
-	while(seq != EOF){
-		HashRead(bloom, seq, argv[2]);
+	while(!feof(fp)){
+		HashRead(bloom, seq, atoi(argv[2]));
 		
 		fgets(seq, argv[3], fp);
 	}
 	fclose(fp);
 	
-	bf = fopen(argv[2], w+);
+	bf = fopen(argv[4], "w+");
 	fputs(bloom, bf);
 	fclose(bf);
 	
@@ -63,8 +63,8 @@ void SetBit(uint64_t* filter, unsigned long i, unsigned long n){
 void HashRead(uint64_t* filter, char* read, unsigned long n){
 	unsigned long i;
 	
-	i = djb2_hash((unsigned char)read);
-	SetBit(filter, i, argv[2]);
+	i = djb2_hash((unsigned char*)read);
+	SetBit(filter, i, atoi(argv[2]));
 }
 
 //Simple hash

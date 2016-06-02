@@ -76,14 +76,12 @@ int main (int argc, char * argv[]) {
    FILE * in;
    in = fopen(inputFile, "r");
    
-   int flag;
-   
    fgets(tuple, l+1, in);
    while (!feof(in)) {
       rm_newline(tuple);
       //Tokenize tuple
       arrayIndex = 0;
-      for(i=0, flag=0; i<l && !flag; i++) {
+      for(i=0; i<l; i++) {
          arrayIndex = arrayIndex << 2; //Move bit to left
          switch(tuple[i]) {
             case 'A':
@@ -98,21 +96,19 @@ int main (int argc, char * argv[]) {
             case 'T':
                arrayIndex += T;
                break;
-            default:
-               flag=1; //If the read contains an unknown bases (N) ignore
          }
       }
       
       
       /*
       //DEBUG
-      if(!flag && arrayIndex == 0)
+      if(arrayIndex == 0)
          fprintf(stdout, "Tuple: %s, index: %x, count: %d\n", tuple, arrayIndex, counter[arrayIndex]);
       */
       
       //Counter update procedure
       //Check if necessary (< m)
-      if(!flag && counter[arrayIndex] < m) {
+      if(counter[arrayIndex] < m) {
          counter[arrayIndex]++;
       }
       printf("Tuple: %s, index: %x, count: %d\n", tuple, arrayIndex, counter[arrayIndex]);
@@ -126,14 +122,23 @@ int main (int argc, char * argv[]) {
    //End of counting section
    
    /*
-   //DEBUG print counter
+   //DEBUG
    for(arrayIndex=0; arrayIndex < spectrum_size; arrayIndex++) {
       fprintf(stdout, "Index: %x, counter: %d\n", arrayIndex, counter[arrayIndex]);
    }
+   //END DEBUG
    */
    
    FILE * out;
    out = fopen(outputFile, "w");
+   
+   /*
+   //DEBUG
+   FILE * debugFP;
+   debugFP = fopen("debug.txt", "w");
+   //END DEBUG
+   */
+   
    uint64_t tmp;
    uint64_t mask;
    //Start of writing output section
@@ -164,7 +169,45 @@ int main (int argc, char * argv[]) {
          tuple[l] = '\0'; //Terminate string
          fprintf(out, "%s\n", tuple);
       }
+      
+      /*
+      //DEBUG
+      else {
+         for(i=0; i<l; i++) {
+            //Create mask
+            mask = 3; //11 binary
+            mask = mask << (i*2);
+            tmp = arrayIndex & mask;
+            tmp = tmp >> (i*2);
+            switch(tmp) {
+               case A:
+                  tuple[l-1-i] = 'A';
+                  break;
+               case C:
+                  tuple[l-1-i] = 'C';
+                  break;
+               case G:
+                  tuple[l-1-i] = 'G';
+                  break;
+               case T:
+                  tuple[l-1-i] = 'T';
+                  break;
+            }
+         }
+         tuple[l] = '\0'; //Terminate string
+         fprintf(debugFP, "%s\n", tuple);
+      }
+      //END DEBUG
+      */
+      
    }
+   
+   /*
+   //DEBUG
+   fclose(debugFP);
+   //END DEBUG
+   */
+   
    fclose(out);
    free(tuple);
    free(counter);

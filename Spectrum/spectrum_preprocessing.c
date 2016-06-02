@@ -10,7 +10,7 @@
 #define printf(...)
 #endif
 
-void get_tuple(char *, char *, int, int);
+int get_tuple(char *, char *, int, int);
 void rm_newline(char *);
 
 /* Spectrum preprocessing, remove useless line and compute the sequences of lenght l
@@ -56,15 +56,18 @@ int main (int argc, char * argv[]) {
       exit(1);
    }
    
+   int flag;
+   
    fgets(read, BUFFER, in);
    while(!feof(in)) {
       rm_newline(read);
       printf("%s\n", read);
       if(read[0] != '>') {
          for(i=0; i< (READS_LENGHT - l + 1); i++) {
-            get_tuple(read, tuple, i, l);
+            flag = get_tuple(read, tuple, i, l);
             //Write out
-            fprintf(out, "%s\n", tuple);
+            if(flag) //If is complete, otherwise discard
+               fprintf(out, "%s\n", tuple);
          }
       }
       fgets(read, BUFFER, in);
@@ -77,12 +80,15 @@ int main (int argc, char * argv[]) {
    free(tuple);
 }
 
-void get_tuple(char * read, char * tuple, int start, int l) {
+int get_tuple(char * read, char * tuple, int start, int l) {
    int i;
    for(i=0; i<l; i++) {
       tuple[i] = read[start+i];
+      if(tuple[i] == 'N')
+         return 0;
    }
    tuple[l] = '\0';
+   return 1;
 }
 
 void rm_newline(char * str) {

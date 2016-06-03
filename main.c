@@ -10,10 +10,10 @@
 #define READS_LENGHT 35
 
 /****************  DEVICE FUNCTIONS  *********************/
-__device__ ushort2 matrix_maximum(int ** v, int L) {
+__device__ ushort2 matrix_maximum(int ** v) {
    unsigned short int i, j, max=0;
    ushort2 couple;
-   for(i=0; i<L; i++) {
+   for(i=0; i<READS_LENGHT; i++) {
       for(j=0;j<BASES;j++) {
          if(v[i][j] > max) {
             max = v[i][j];
@@ -42,11 +42,11 @@ __device__ void gpu_strcpy(char * a, char * b) {
 
 /***************** FIXING KERNEL ***************************/
 
-__global__ void fixing(char ** reads, unsigned short int L, unsigned short int l, unsigned short int ** voting_matrix, unsigned int inputDim) {
-   ushort2 couple = matrix_maximum(voting_matrix, L);
+__global__ void fixing(char ** reads, unsigned short int l, unsigned short int ** voting_matrix, unsigned int inputDim) {
+   ushort2 couple = matrix_maximum(voting_matrix);
    ushort2 trim_indexes;
-   trim_indexes.x = 0;
-   trim_indexes.y = 0;
+   trim_indexes.x = 0; //Starting index of longest substring
+   trim_indexes.y = 0; //End index of longest substring
    
    int idx = blockIdx.x * blockDim.x + threadIdx.x;
    
@@ -61,20 +61,20 @@ __global__ void fixing(char ** reads, unsigned short int L, unsigned short int l
       return; //read is already correct
    }
    
-   __shared__ char rc[L+1];
+   __shared__ char rc[READS_LENGHT+1];
    unsigned short int i;
    for(i=0; i<couple.x; i++) {
       rc[i] = read[i];
    }
    rc[i] = bases(copule.y);
-   for(i=couple.x+1; i<L; i++) {
+   for(i=couple.x+1; i<READS_LENGHT; i++) {
       rc[i] = read[i];
    }
    
    bool corrected_flag=TRUE, trimmed_flag=FALSE;
    unsigned short int j;
    __shared__ char tuple[l+1];
-   for(j=0;j < (L-(l+1)); j++) {
+   for(j=0;j < (READS_LENGHT-(l+1)); j++) {
       //Create tuple
       for(i=j; i<j+l; i++) {
          tuple[i-j] = read[j];
@@ -181,10 +181,18 @@ int main (int argc, char * argv[]) {
    
    //Allocate inputDim on gpu memory
    if(cudaMalloc(&gpu_inputDim, sizeof(unsigned int)) == cudaErrorMemoryAllocation) {
-      frpintf(stdout, "Error: CUDA allocation\n");
+      fprintf(stdout, "Error: CUDA allocation\n");
       exit(1);
    }
    cudaMemcpy(gpu_inputDim, inputDim, sizeof(unsigned int), cudaMemcpyHostToDevice);
+   
+   //Allocate l on device memory
+   unsigned short int * gpu_l;
+   if(cudaMalloc(&gpu_l, sizeof(unsigned short int)) == cudaErrorMemoryAllocation) {
+      fprintf(stdout, "Error: CUDA allocation\n");
+      exit(1);
+   }
+   cudaMemcpy(gpu_l, l, sizeof(unsigned short int), cudaMemcpyHostToDevice);
    
    /************* VOTING ***************/
    
@@ -192,14 +200,10 @@ int main (int argc, char * argv[]) {
    
    /************* FIXING ***************/
    
-   __device__ const thrust::device_vector<char> bases(BASES);
-   bases[0] = 'A';
-   bases[1] = 'C';
-   bases[2] = 'G';
-   bases[3] = 'T';
+   __device__ const thrust::device_vector<char> bases(BASES) = {'A', 'C', 'G'.,'T'};
    
    //Execute kernel
-   fixing <<< inputDim/BLOCK_DIM, BLOCK_DIM >>> (gpu_reads, gpu_L, gpu_l, gpu_voting_matrix, gpu_inputDim);
+   fixing <<< inputDim/BLOCK_DIM, BLOCK_DIM >>> (gpu_reads, gpu_l, gpu_voting_matrix, gpu_inputDim);
    
    
    /************* MEM FREE *****************/
@@ -211,6 +215,7 @@ int main (int argc, char * argv[]) {
       free(reads[i]);
    }
    cudaFree(gpu_reads);
+   cudaFree(gpu_l);
    free(reads);
    
    return 0;

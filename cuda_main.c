@@ -53,7 +53,7 @@ __device__ void gpu_strcpy(char * a, char * b) {
 
 /***************** FIXING KERNEL ***************************/
 
-__global__ void fixing(char ** reads, unsigned short int l, unsigned short int ** voting_matrix, unsigned int inputDim) {
+__global__ void fixing(char ** reads, unsigned short int ** voting_matrix) {
    ushort2 couple = matrix_maximum(voting_matrix);
    ushort2 trim_indexes;
    trim_indexes.x = 0; //Starting index of longest substring
@@ -61,7 +61,7 @@ __global__ void fixing(char ** reads, unsigned short int l, unsigned short int *
    
    int idx = blockIdx.x * blockDim.x + threadIdx.x;
    
-   if(idx >= inputDim)
+   if(idx >= gpu_inputDim)
       return;
    
    __shared__ char read[L+1];
@@ -72,7 +72,7 @@ __global__ void fixing(char ** reads, unsigned short int l, unsigned short int *
       return; //read is already correct
    }
    
-   __shared__ char rc[READS_LENGHT+1];
+   char rc[READS_LENGHT+1];
    unsigned short int i;
    for(i=0; i<couple.x; i++) {
       rc[i] = read[i];
@@ -84,14 +84,14 @@ __global__ void fixing(char ** reads, unsigned short int l, unsigned short int *
    
    bool corrected_flag=TRUE, trimmed_flag=FALSE;
    unsigned short int j;
-   __shared__ char tuple[l+1];
-   for(j=0;j < (READS_LENGHT-(l+1)); j++) {
+   __shared__ char tuple[gpu_l+1];
+   for(j=0;j < (READS_LENGHT-(gpu_l+1)); j++) {
       //Create tuple
-      for(i=j; i<j+l; i++) {
+      for(i=j; i<j+gpu_l; i++) {
          tuple[i-j] = read[j];
       }
       tuple[l] = '\0';
-      if( !(/* query bloom filter for tuple */) ) {
+      if( !(/* TODO - query bloom filter for tuple */) ) {
          corrected_flag = FALSE;
         /* Check for trimming
          * If current subsequence is longer than previous one then update
@@ -188,7 +188,7 @@ int main (int argc, char * argv[]) {
     * 
     * 
     */
-   //TODO
+   //TODO -  use __constant__ qualifier
     
    /* Allocate reads on device memory as gpu_reads
     * Include memcopy of already filled data
@@ -213,32 +213,13 @@ int main (int argc, char * argv[]) {
     * Include memcopy
     * 
     */
-   gpu_inputDim = inputDim;
-   /*
-   ---OLD
-   if(cudaMalloc(&gpu_inputDim, sizeof(unsigned int)) == cudaErrorMemoryAllocation) {
-      fprintf(stdout, "Error: CUDA allocation\n");
-      exit(1);
-   }
-   cudaMemcpy(gpu_inputDim, inputDim, sizeof(unsigned int), cudaMemcpyHostToDevice);
-   ---END OLD
-   */
+   cudaMemcpyToSymbol(gpu_inputDim, inputDim, sizeof(unsigned int));
    
    /* Allocate l on device memory
     * Include memcopy
     * 
     */
-   gpu_l = l;
-   
-   /*
-   ---OLD
-   if(cudaMalloc(&gpu_l, sizeof(unsigned short int)) == cudaErrorMemoryAllocation) {
-      fprintf(stdout, "Error: CUDA allocation\n");
-      exit(1);
-   }
-   cudaMemcpy(gpu_l, l, sizeof(unsigned short int), cudaMemcpyHostToDevice);
-   ---END OLD
-   */
+   cudaMemcpyToSymbol(gpu_l, l, sizeof(unsigned short int));
    
    /* Initialize voting_matrix of zeros
     * Then proceed with the allocation on device memory of gpu_voting_matrix
@@ -290,7 +271,7 @@ int main (int argc, char * argv[]) {
    /* Already allocated and initializated voting_matrix and gpu_voting_matrix;
     * reads and gpu_reads allocated and filled with data;
     * inputDim is defined as gpu_inputDim;
-    * TODO spectrum allocation and filling
+    * TODO spectrum allocation and filling (in proper section)
     */
    
    

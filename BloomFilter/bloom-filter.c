@@ -2,17 +2,20 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include "city.h"
+#include "spooky.h"
 
 #ifdef SILENT
 #define printf(...)
 #endif
 
-#define SEED 75489
+#define SEED 75489		//define another one for spooky
 
 void SetBit(uint64_t* filter, unsigned long i, unsigned long n);
 void HashRead(uint64_t* filter, char* read, unsigned long n);
 unsigned long djb2_hash(unsigned char *str);
 uint64_t MurmurHash64A (const void * key, int len, unsigned int seed);
+long hash64shift(long key);
 
 
 int main (int argc, char* argv[]){		//File name (read), spectrum dimension, length of reads, file name (write)
@@ -77,13 +80,24 @@ void HashRead(uint64_t* filter, char* read, unsigned long n){
 	
 	i = djb2_hash((unsigned char*)read);
 	SetBit(filter, i, n);
-	
 	printf("djb2: %lu ", i);
 
 	i = MurmurHash64A(read, strlen(read), SEED);
 	SetBit(filter, i, n);
-
-	printf("Murmurhash: %lu\n", i);
+	printf("Murmurhash: %lu", i);
+	
+	i = hash64shift(read);
+	SetBit(filter, i, n);
+	printf("hash64: %lu", i);
+	
+	i = CityHash64(read, strlen(read));
+	SetBit(filter, i, n);
+	printf("CityHash: %lu", i);
+	
+	i = spooky_hash64(read, strlen(read), SEED);
+	SetBit(filter, i, n);
+	printf("SpookyHash: %lu\n", i);
+	
 }
 
 //Simple hash
@@ -140,3 +154,16 @@ uint64_t MurmurHash64A ( const void * key, int len, unsigned int seed )
 
 	return h;
 } 
+
+//Generic 64bit hash
+long hash64shift(long key)
+{
+  key = (~key) + (key << 21); // key = (key << 21) - key - 1;
+  key = key ^ (key >>> 24);
+  key = (key + (key << 3)) + (key << 8); // key * 265
+  key = key ^ (key >>> 14);
+  key = (key + (key << 2)) + (key << 4); // key * 21
+  key = key ^ (key >>> 28);
+  key = key + (key << 31);
+  return key;
+}

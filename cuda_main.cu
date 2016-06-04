@@ -8,6 +8,18 @@
 #define BLOCK_DIM 16
 #define READS_LENGHT 35
 
+/************ ERROR HANDLING *****************************/
+void HandleError( cudaError_t err,
+                         const char *file,
+                         int line ) {
+    if (err != cudaSuccess) {
+        printf( "%s in %s at line %d\n", cudaGetErrorString( err ),
+                file, line );
+        exit( EXIT_FAILURE );
+    }
+}
+#define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
+
 /**************** GLOBAL VARIABLE ************************/
 __shared__ unsigned short int gpu_l;
 __shared__ unsigned int gpu_inputDim;
@@ -86,7 +98,7 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
    
    bool corrected_flag=1, trimmed_flag=0;
    unsigned short int j;
-   char tuple[READS_LENGHT + 1]; //Memory wasting
+   char tuple[READS_LENGHT + 1]; //Memory waste - TODO
    /*
    char * tuple;
    if(cudaMalloc((void **)&tuple, (gpu_l + 1) * sizeof(char)) == cudaErrorMemoryAllocation) {
@@ -216,18 +228,12 @@ int main (int argc, char * argv[]) {
     * 
     */
    char ** gpu_reads;
-   if(cudaMalloc((void **)&gpu_reads, inputDim * sizeof(char *)) == cudaErrorMemoryAllocation) {
-      fprintf(stdout, "Error: CUDA allocation\n");
-      exit(1);
+   HANDLE_ERROR(cudaMalloc((void **)&gpu_reads, inputDim * sizeof(char *)));
+   for(i=0; i<inputDim; i++) {
+      HANDLE_ERROR(cudaMalloc((void **)&(gpu_reads[i]), (READS_LENGHT + 1) * sizeof(char)));
    }
    for(i=0; i<inputDim; i++) {
-      if(cudaMalloc((void **)&(gpu_reads[i]), (READS_LENGHT + 1) * sizeof(char)) == cudaErrorMemoryAllocation) {
-         fprintf(stdout, "Error: CUDA allocation\n");
-         exit(1);
-      }
-   }
-   for(i=0; i<inputDim; i++) {
-      cudaMemcpy(gpu_reads[i], reads[i], sizeof(char) * (READS_LENGHT + 1), cudaMemcpyHostToDevice);
+      HANDLE_ERROR(cudaMemcpy(gpu_reads[i], reads[i], sizeof(char) * (READS_LENGHT + 1), cudaMemcpyHostToDevice));
    }
    
    /* Allocate inputDim on gpu memory as gpu_inputDim
@@ -275,22 +281,13 @@ int main (int argc, char * argv[]) {
       exit(1);
    }
    for(i=0; i<inputDim; i++) {
-      if(cudaMalloc((void **)&gpu_voting_matrix[i], sizeof(unsigned short int **) * READS_LENGHT) == cudaErrorMemoryAllocation) {
-         fprintf(stdout, "Error: CUDA allocation\n");
-         exit(1);
-      }
+      HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix[i], sizeof(unsigned short int **) * READS_LENGHT));
       for(j=0; j<inputDim; j++) {
-         if(cudaMalloc((void **)&gpu_voting_matrix[i][j], sizeof(unsigned short int *) * BASES) == cudaErrorMemoryAllocation) {
-            fprintf(stdout, "Error: CUDA allocation\n");
-            exit(1);
-         }
+         HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix[i][j], sizeof(unsigned short int *) * BASES));
          for(h=0; h<BASES; h++) {
-            if(cudaMalloc((void **)&gpu_voting_matrix[i][j][h], sizeof(unsigned short int)) == cudaErrorMemoryAllocation) {
-               fprintf(stdout, "Error: CUDA allocation\n");
-               exit(1);
-            }
+            HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix[i][j][h], sizeof(unsigned short int)));
             //Copy initialized matrix
-            cudaMemcpy((void *)&gpu_voting_matrix[i][j][h], (const void *)&voting_matrix[i][j][h], sizeof(unsigned short int), cudaMemcpyHostToDevice);
+            HANDLE_ERROR(cudaMemcpy((void *)&gpu_voting_matrix[i][j][h], (const void *)&voting_matrix[i][j][h], sizeof(unsigned short int), cudaMemcpyHostToDevice));
          }
       }
    }
@@ -321,7 +318,7 @@ int main (int argc, char * argv[]) {
     * 
     */
     for(i=0; i<inputDim; i++) {
-      cudaMemcpy(reads[i], gpu_reads[i], sizeof(char) * (READS_LENGHT + 1), cudaMemcpyDeviceToHost);
+      HANDLE_ERROR(cudaMemcpy(reads[i], gpu_reads[i], sizeof(char) * (READS_LENGHT + 1), cudaMemcpyDeviceToHost));
     } 
    
    

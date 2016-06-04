@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <malloc.h>
 #include <cuda.h>
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
 
 #define PARAM 6 //l, spectrum (bloom filter), dim, input, dim, output
 #define BASES 4
@@ -17,10 +16,10 @@ __shared__ unsigned int gpu_inputDim;
  * used to substitute character in the attempt of correcting reads
  * In order to reduce acces latency it will be stored on shared memory
  */
-__shared__ const thrust::device_vector<char> bases(BASES) = {'A', 'C', 'G','T'};
+__shared__ char bases[BASES];
 
 /****************  DEVICE FUNCTIONS  *********************/
-__device__ ushort2 matrix_maximum(int ** v) {
+__device__ ushort2 matrix_maximum(unsigned short int ** v) {
    unsigned short int i, j, maximum=0;
    ushort2 couple;
    for(i=0; i<READS_LENGHT; i++) {
@@ -28,7 +27,7 @@ __device__ ushort2 matrix_maximum(int ** v) {
          if(v[i][j] > maximum) {
             maximum = v[i][j];
             couple.x=i;
-            copule.y=j;
+            couple.y=j;
          }
       }
    }
@@ -64,9 +63,9 @@ __global__ void fixing(char ** reads, unsigned short int ** voting_matrix) {
    if(idx >= gpu_inputDim)
       return;
    
-   __shared__ char read[L+1];
+   char * read;
    
-   read = reads[idx];
+   read = (char *)reads[idx];
    
    if(voting_matrix[couple.x][couple.y] == 0) {
       return; //read is already correct
@@ -77,33 +76,33 @@ __global__ void fixing(char ** reads, unsigned short int ** voting_matrix) {
    for(i=0; i<couple.x; i++) {
       rc[i] = read[i];
    }
-   rc[i] = bases(copule.y);
+   rc[i] = bases[couple.y];
    for(i=couple.x+1; i<READS_LENGHT; i++) {
       rc[i] = read[i];
    }
    
-   bool corrected_flag=TRUE, trimmed_flag=FALSE;
+   bool corrected_flag=1, trimmed_flag=0;
    unsigned short int j;
-   __shared__ char tuple[gpu_l+1];
+   char tuple[gpu_l+1]; //TODO - Allocation
    for(j=0;j < (READS_LENGHT-(gpu_l+1)); j++) {
       //Create tuple
       for(i=j; i<j+gpu_l; i++) {
          tuple[i-j] = read[j];
       }
-      tuple[l] = '\0';
-      if( !(/* TODO - query bloom filter for tuple */) ) {
-         corrected_flag = FALSE;
+      tuple[gpu_l] = '\0';
+      if( !(1/* TODO - query bloom filter for tuple */) ) {
+         corrected_flag = 0;
         /* Check for trimming
          * If current subsequence is longer than previous one then update
          * Else the longest subsequent is already stored
          */
          if( (j+8 - trim_indexes.y+2) > (trim_indexes.y - trim_indexes.x) ) {
             trim_indexes.x = trim_indexes.y+2;
-            trim_indexes.y = j+l-1;
+            trim_indexes.y = j+gpu_l-1;
          }
       }
       else {
-         trimmed_flag = TRUE;
+         trimmed_flag = 1;
       }
    }
    
@@ -140,6 +139,12 @@ int main (int argc, char * argv[]) {
    const unsigned short int l = atoi(argv[1]);
    
    /************** INITIALIZATION **************/
+   
+   /* Allocate basis vector
+    * 
+    */
+   char host_bases[BASES] = {'A', 'C', 'G','T'};
+   cudaMemcpyToSymbol(bases, host_bases, sizeof(char) * BASES);
 
    /* Allocate and store the spectrum on the host,
     * reading it from the input file
@@ -161,13 +166,13 @@ int main (int argc, char * argv[]) {
     */
    char ** reads;
    if(!(reads = (char **)malloc(sizeof(char *) * inputDim))) {
-      frpintf(stdout, "Error: allocation\n");
+      fprintf(stdout, "Error: allocation\n");
       exit(1);
    }
    
    for(i=0; i<inputDim; i++) {
       if(!(reads[i] = (char *)malloc(sizeof(char) * (READS_LENGHT+1)))) {
-         frpintf(stdout, "Error: allocation\n");
+         fprintf(stdout, "Error: allocation\n");
          exit(1);
       }
    }
@@ -196,7 +201,7 @@ int main (int argc, char * argv[]) {
     */
    char ** gpu_reads;
    if(cudaMalloc(&gpu_reads, inputDim * sizeof(char *)) == cudaErrorMemoryAllocation) {
-      frpintf(stdout, "Error: CUDA allocation\n");
+      fprintf(stdout, "Error: CUDA allocation\n");
       exit(1);
    }
    for(i=0; i<inputDim; i++) {
@@ -206,20 +211,20 @@ int main (int argc, char * argv[]) {
       }
    }
    for(i=0; i<inputDim; i++) {
-      cudaMemcpy(gpuReads[i], reads[i], sizeof(char) * (READS_LENGHT + 1), cudaMemcpyHostToDevice);
+      cudaMemcpy(gpu_reads[i], reads[i], sizeof(char) * (READS_LENGHT + 1), cudaMemcpyHostToDevice);
    }
    
    /* Allocate inputDim on gpu memory as gpu_inputDim
     * Include memcopy
     * 
     */
-   cudaMemcpyToSymbol(gpu_inputDim, inputDim, sizeof(unsigned int));
+   cudaMemcpyToSymbol(&gpu_inputDim, inputDim, sizeof(unsigned int));
    
    /* Allocate l on device memory
     * Include memcopy
     * 
     */
-   cudaMemcpyToSymbol(gpu_l, l, sizeof(unsigned short int));
+   cudaMemcpyToSymbol(&gpu_l, l, sizeof(unsigned short int));
    
    /* Initialize voting_matrix of zeros
     * Then proceed with the allocation on device memory of gpu_voting_matrix
@@ -227,8 +232,8 @@ int main (int argc, char * argv[]) {
     * 
     */
    unsigned short int * voting_matrix[READS_LENGHT][BASES];
-   if(!(voting_matrix = (unsigned short int ***)malloc(sizeof(unsigned short int **) * inputDim))) {
-      frpintf(stdout, "Error: allocation\n");
+   if(!(voting_matrix = (unsigned short int ***)malloc(sizeof(unsigned short int **) * inputDim))) { //TODO
+      fprintf(stdout, "Error: allocation\n");
       exit(1);
    }
    for(i=0; i<inputDim; i++) {
@@ -256,7 +261,7 @@ int main (int argc, char * argv[]) {
             exit(1);
          }
          for(h=0; h<BASES; h++) {
-            if(cudaMalloc(&gpu_voting_matrix[i][j][h], sizeof(unsigned short int) == cudaErrorMemoryAllocation) {
+            if(cudaMalloc(&gpu_voting_matrix[i][j][h], sizeof(unsigned short int)) == cudaErrorMemoryAllocation) {
                fprintf(stdout, "Error: CUDA allocation\n");
                exit(1);
             }
@@ -283,7 +288,7 @@ int main (int argc, char * argv[]) {
     */
    
    //Execute kernel
-   fixing <<< inputDim/BLOCK_DIM, BLOCK_DIM >>> (gpu_reads, gpu_l, gpu_voting_matrix, gpu_inputDim);
+   fixing <<< inputDim/BLOCK_DIM, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix);
    
    /************ RETRIEVE RESULT ********/
    

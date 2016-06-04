@@ -9,6 +9,16 @@
 #define BLOCK_DIM 16
 #define READS_LENGHT 35
 
+/**************** GLOBAL VARIABLE ************************/
+__shared__ unsigned short int gpu_l;
+__shared__ unsigned int gpu_inputDim;
+
+/* Allocate vector of bases on device memory,
+ * used to substitute character in the attempt of correcting reads
+ * In order to reduce acces latency it will be stored on shared memory
+ */
+__shared__ const thrust::device_vector<char> bases(BASES) = {'A', 'C', 'G','T'};
+
 /****************  DEVICE FUNCTIONS  *********************/
 __device__ ushort2 matrix_maximum(int ** v) {
    unsigned short int i, j, max=0;
@@ -203,7 +213,7 @@ int main (int argc, char * argv[]) {
     * Include memcopy
     * 
     */
-   __shared__ const unsigned int gpu_inputDim = inputDim;
+   gpu_inputDim = inputDim;
    /*
    ---OLD
    if(cudaMalloc(&gpu_inputDim, sizeof(unsigned int)) == cudaErrorMemoryAllocation) {
@@ -218,7 +228,7 @@ int main (int argc, char * argv[]) {
     * Include memcopy
     * 
     */
-   __shared__ const unsigned short int gpu_l = l;
+   gpu_l = l;
    
    /*
    ---OLD
@@ -290,12 +300,6 @@ int main (int argc, char * argv[]) {
     * as gpu_reads. Do not remove from the device memory
     * 
     */
-   
-   /* Allocate vector of bases on device memory,
-    * used to substitute character in the attempt of correcting reads
-    * In order to reduce acces latency it will be stored on shared memory
-    */
-   __shared__ const thrust::device_vector<char> bases(BASES) = {'A', 'C', 'G'.,'T'};
    
    //Execute kernel
    fixing <<< inputDim/BLOCK_DIM, BLOCK_DIM >>> (gpu_reads, gpu_l, gpu_voting_matrix, gpu_inputDim);

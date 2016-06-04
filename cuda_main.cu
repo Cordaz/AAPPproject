@@ -21,12 +21,12 @@ __shared__ const thrust::device_vector<char> bases(BASES) = {'A', 'C', 'G','T'};
 
 /****************  DEVICE FUNCTIONS  *********************/
 __device__ ushort2 matrix_maximum(int ** v) {
-   unsigned short int i, j, max=0;
+   unsigned short int i, j, maximum=0;
    ushort2 couple;
    for(i=0; i<READS_LENGHT; i++) {
       for(j=0;j<BASES;j++) {
-         if(v[i][j] > max) {
-            max = v[i][j];
+         if(v[i][j] > maximum) {
+            maximum = v[i][j];
             couple.x=i;
             copule.y=j;
          }

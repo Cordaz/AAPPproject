@@ -10,12 +10,18 @@
 #endif
 
 #define SEED 75489		//define another one for spooky
+const uint64_t FNV_PRIME    = 1099511628211;				
+const uint64_t OFFSET_BASIS = 14695981039346656037UL;
 
 void SetBit(uint64_t* filter, unsigned long i, unsigned long n);
 void HashRead(uint64_t* filter, char* read, unsigned long n);
+
 unsigned long djb2_hash(unsigned char *str);
 uint64_t MurmurHash64A (const void * key, int len, unsigned int seed);
-long hash64shift(long key);
+uint64_t APHash(char* str, unsigned int length)
+uint64_t fnvhash(char * string);
+uint64_t SDBMHash(char* str, unsigned int length);
+uint64_t RSHash(char* str, unsigned int length);
 
 
 int main (int argc, char* argv[]){		//File name (read), spectrum dimension, length of reads, file name (write)
@@ -58,7 +64,7 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 	
 	bf = fopen(argv[4], "w+");
 	for(int k=0; k<n; k++)
-		fprintf(bf, "%lu", bloom[k]);
+		fprintf(bf, "%lu\n", bloom[k]);
 	fclose(bf);
 	
 	free(bloom);
@@ -71,6 +77,8 @@ void SetBit(uint64_t* filter, unsigned long i, unsigned long n){
 	unsigned long k = i % n;
 	unsigned long pos = i % 64;
 	
+	printf(", cell: %lu, bit: %lu\n", k, pos);
+	
 	filter[k] |= 1 << pos;
 }
 
@@ -79,28 +87,40 @@ void HashRead(uint64_t* filter, char* read, unsigned long n){
 	unsigned long i;
 	
 	i = djb2_hash((unsigned char*)read);
-	SetBit(filter, i, n);
 	printf("djb2: %lu ", i);
+	SetBit(filter, i, n);
 
 	i = MurmurHash64A(read, strlen(read), SEED);
-	SetBit(filter, i, n);
 	printf("Murmurhash: %lu", i);
+	SetBit(filter, i, n);
 	
 	i = hash64shift(read);
-	SetBit(filter, i, n);
 	printf("hash64: %lu", i);
+	SetBit(filter, i, n);
 	
 	i = CityHash64(read, strlen(read));
-	SetBit(filter, i, n);
 	printf("CityHash: %lu", i);
+	SetBit(filter, i, n);
 	
 	i = spooky_hash64(read, strlen(read), SEED);
+	printf("SpookyHash: %lu", i);
 	SetBit(filter, i, n);
-	printf("SpookyHash: %lu\n", i);
+	
+	i = fnvhash(read);
+	printf("FNVhash: %lu", i);
+	SetBit(filter, i, n);
+	
+	i = SDBMHash(read, strlen(read));
+	printf("SDBMhash: %lu", i);
+	SetBit(filter, i, n);
+	
+	i = RSHash(read, strlen(read));
+	printf("RShash: %lu", i);
+	SetBit(filter, i, n);
 	
 }
 
-//Simple hash
+//djb2 hash
 unsigned long djb2_hash(unsigned char *str){
     unsigned long hash = 5381;
     int c;
@@ -155,15 +175,55 @@ uint64_t MurmurHash64A ( const void * key, int len, unsigned int seed )
 	return h;
 } 
 
-//Generic 64bit hash
-long hash64shift(long key)
-{
-  key = (~key) + (key << 21); // key = (key << 21) - key - 1;
-  key = key ^ (key >>> 24);
-  key = (key + (key << 3)) + (key << 8); // key * 265
-  key = key ^ (key >>> 14);
-  key = (key + (key << 2)) + (key << 4); // key * 21
-  key = key ^ (key >>> 28);
-  key = key + (key << 31);
-  return key;
+//AP hash
+uint64_t APHash(char* str, unsigned int length) {
+	uint64_t hash = 0xAAAAAAAA;
+	unsigned int i = 0;
+
+	for (i = 0; i < length; str++, i++)
+	{
+		hash ^= ((i & 1) == 0) ? ((hash << 7) ^ (*str) * (hash >> 3)) :
+			(~((hash << 11) + ((*str) ^ (hash >> 5))));
+	}
+
+	return hash;
+}
+
+//FNV hash
+uint64_t fnvhash(char * string){
+   uint64_t hash = OFFSET_BASIS;
+   for(uint8_t * c = (uint8_t*)string; *c != 0; ++c){
+      hash ^= *c;
+      hash *= FNV_PRIME;
+   }
+   return hash;
+}
+
+//SDBM hash
+uint64_t SDBMHash(char* str, unsigned int length) {
+	uint64_t hash = 0;
+	unsigned int i = 0;
+
+	for (i = 0; i < length; str++, i++)
+	{
+		hash = (*str) + (hash << 6) + (hash << 16) - hash;
+	}
+
+	return hash;
+}
+
+//RS hash
+uint64_t RSHash(char* str, unsigned int length) {
+	unsigned int b = 378551;
+	unsigned int a = 63689;
+	uint64_t hash = 0;
+	unsigned int i = 0;
+
+	for (i = 0; i < length; str++, i++)
+	{
+		hash = hash * a + (*str);
+		a = a * b;
+	}
+
+	return hash;
 }

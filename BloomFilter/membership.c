@@ -6,7 +6,7 @@
 #include "city.h"
 
 #define BUF 255			//length of the filter cells on file
-#define L 10			//length of the reads
+#define L 11			//length of the reads
 #define MSEED 7127		//static seed for murmur function
 #define SSEED 5449		//static seed for spooky function
 
@@ -16,10 +16,11 @@ int CheckHash(uint64_t* filter, char* read, unsigned long n);
 int main(int argc, char* argv[]){
 
 	uint64_t* bloom;
-	uint64_t cell;
+	unsigned long cell;
 	FILE* bf, * fp;
 	unsigned long n;
 	char* seq;
+	char cons;
 	
 	n = atoi(argv[2]);
 
@@ -32,19 +33,27 @@ int main(int argc, char* argv[]){
 		fprintf(stdout, "Error: File not found\n");
 		exit(1);
 	}
-	fread(&cell, sizeof(uint64_t), 1, bf);
+	fread(&cell, sizeof(unsigned long), 1, bf);
+	printf("%lu\n", cell);
 	if(feof(bf)){
 		fprintf(stdout, "Warning: Empty file\n");
 		exit(1);
 	}
 
 	//Load bloom filter
-	for(int i=0; i<n && !feof(bf); i++){
+	for(int i=0; i<n-1 && !feof(bf); i++){
 		bloom[i] = (uint64_t)cell;
-		fread(&cell, sizeof(uint64_t), 1, bf);
+		fread(&cell, sizeof(unsigned long), 1, bf);
+		printf("%lu\n", cell);
 	}
 	fclose(bf);
-
+	
+	/*DEBUG
+	for(int k=0; k<n; k++)
+		fprintf(stdout, "%lu\n", bloom[k]);
+	fclose(bf);
+	*/
+	
 	//Checking part
 
 	//with file
@@ -58,7 +67,8 @@ int main(int argc, char* argv[]){
 		exit(1);
 	}
 	while(!feof(fp)){
-		
+		cons = fgetc(fp);
+
 		if(CheckHash(bloom, seq, n))
 			printf("%s belongs to the spectrum\n", seq);
 		else
@@ -75,8 +85,13 @@ int main(int argc, char* argv[]){
 int CheckBit(uint64_t* filter, unsigned long i, unsigned long n){
 	unsigned long k = i % n;
 	unsigned long pos = i % 64;
-
-	return (filter[k] & (1 << (pos)) != 0);
+	uint64_t bit = 1, res;
+	bit = bit << pos;
+	res = filter[k] & bit;
+	if(res !=0)
+		return 1;
+	else
+		return 0;
 }
 
 //Hashes the read and checks

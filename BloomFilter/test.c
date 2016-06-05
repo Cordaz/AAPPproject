@@ -15,6 +15,8 @@
 
 void SetBit(uint64_t* filter, unsigned long i, unsigned long n);
 void HashRead(uint64_t* filter, char* read, unsigned long n);
+int CheckBit(uint64_t* filter, unsigned long i, unsigned long n);
+int CheckHash(uint64_t* filter, char* read, unsigned long n);
 
 
 int main (int argc, char* argv[]){		//File name (read), spectrum dimension, length of reads, file name (write)
@@ -27,23 +29,23 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 	char cons;					//consume \n
 	
 	n = atoi(argv[2]);
-	l = atoi(argv[3]);
+	l = atoi(argv[3])+1;
 
 	//Allocate memory for Bloom Filter
 	if(!(bloom = (uint64_t*)malloc(n*sizeof(uint64_t)))){		//assigns 64*n bits
 		fprintf(stdout, "Error: Not enough memory\n");
 		exit(1);
 	}
+	seq = (char*)malloc(10*sizeof(char));
 	for(int i=0; i<n; i++)
 		bloom[i]=0;
-	seq = (char*)malloc(l*sizeof(char));	
-
+	
 	//Try file
 	if(!(fp = fopen(argv[1], "r"))){
 		fprintf(stdout, "Error: File not found\n");
 		exit(1);
 	}
-	fgets(seq, l+1, fp);
+	fgets(seq, l, fp);
 	//printf("%s\n", seq);
 	if(feof(fp)){
 		fprintf(stdout, "Warning: Empty file\n");
@@ -54,15 +56,34 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 	while(!feof(fp)){
 		HashRead(bloom, seq, n);
 		cons = fgetc(fp);
-		fgets(seq, l+1, fp);
+		fgets(seq, l, fp);
 		//printf("%s\n", seq);
 	}
 	fclose(fp);
 	
-	bf = fopen(argv[4], "w+");
-	for(int k=0; k<n; k++)
-		fprintf(bf, "%lu\n", bloom[k]);
-	fclose(bf);
+
+	//Check hash
+	if(!(fp = fopen(argv[4], "r"))){
+		fprintf(stdout, "Error: File not found\n");
+		exit(1);
+	}
+	fgets(seq, l, fp);
+	cons = fgetc(fp);
+	if(feof(fp)){
+		fprintf(stdout, "Warning: Empty file\n");
+		exit(1);
+	}
+	while(!feof(fp)){
+
+		if(CheckHash(bloom, seq, n))
+			printf("%s belongs to the spectrum\n", seq);
+		else
+			printf("%s not in spectrum\n", seq);
+		
+		fgets(seq, l, fp);
+		cons = fgetc(fp);
+	}
+	fclose(fp);
 	
 	free(bloom);
 	
@@ -117,4 +138,60 @@ void HashRead(uint64_t* filter, char* read, unsigned long n){
 	//printf("RShash: %lu", i);
 	SetBit(filter, i, n);
 	
+}
+
+//Check that the bit is in the filter
+int CheckBit(uint64_t* filter, unsigned long i, unsigned long n){
+	unsigned long k = i % n;
+	unsigned long pos = i % 64;
+	uint64_t bit = 1, res;
+	bit = bit << pos;
+	res = filter[k] & bit;
+	if(res !=0)
+		return 1;
+	else
+		return 0;
+}
+
+//Hashes the read and checks
+int CheckHash(uint64_t* filter, char* read, unsigned long n){
+	int flag = 1;
+	unsigned long i;
+
+	for(int k=1; k<=8 && flag; k++){
+		
+		switch (k){
+		
+		case 1:
+			i = djb2_hash((unsigned char*)read);
+			break;
+		case 2:
+			i = MurmurHash64A(read, strlen(read), MSEED);
+			break;
+		case 3:
+			i = APHash(read, strlen(read));
+			break;
+		case 4:
+			i = CityHash64(read, strlen(read));
+			break;
+		case 5:
+			i = spooky_hash64(read, strlen(read), SSEED);
+			break;
+		case 6:
+			i = fnvhash(read);
+			break;
+		case 7:
+			i = SDBMHash(read, strlen(read));
+			break;
+		case 8:
+			i = RSHash(read, strlen(read));
+			break;
+		
+		default: break;
+		}
+		
+		flag = CheckBit(filter, i, n);
+	}
+
+	return flag;
 }

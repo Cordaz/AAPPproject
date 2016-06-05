@@ -5,7 +5,7 @@
 #include "spooky.h"
 #include "city.h"
 
-#define STRLEN 20		//length of the filter cells on file
+#define BUF 255			//length of the filter cells on file
 #define L 10			//length of the reads
 #define MSEED 7127		//static seed for murmur function
 #define SSEED 5449		//static seed for spooky function
@@ -16,9 +16,10 @@ int CheckHash(uint64_t* filter, char* read, unsigned long n);
 int main(int argc, char* argv[]){
 
 	uint64_t* bloom;
+	uint64_t cell;
 	FILE* bf, * fp;
 	unsigned long n;
-	char* cell, * seq;
+	char* seq;
 	
 	n = atoi(argv[2]);
 
@@ -31,7 +32,7 @@ int main(int argc, char* argv[]){
 		fprintf(stdout, "Error: File not found\n");
 		exit(1);
 	}
-	fgets(cell, STRLEN, bf);
+	fread(&cell, sizeof(uint64_t), 1, bf);
 	if(feof(bf)){
 		fprintf(stdout, "Warning: Empty file\n");
 		exit(1);
@@ -40,9 +41,8 @@ int main(int argc, char* argv[]){
 	//Load bloom filter
 	for(int i=0; i<n && !feof(bf); i++){
 		bloom[i] = (uint64_t)cell;
-		fgets(cell, STRLEN, bf);
+		fread(&cell, sizeof(uint64_t), 1, bf);
 	}
-
 	fclose(bf);
 
 	//Checking part

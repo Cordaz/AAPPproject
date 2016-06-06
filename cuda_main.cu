@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <cuda.h>
+#include <stdint.h>
 
 #define PARAM 6 //l, spectrum (bloom filter), dim, input, dim, output
 #define BASES 4
@@ -21,14 +22,14 @@ void HandleError( cudaError_t err,
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 
 /**************** GLOBAL VARIABLE ************************/
-__shared__ unsigned short int gpu_l;
-__shared__ unsigned int gpu_inputDim;
+__shared__ unsigned short int * gpu_l;
+__shared__ unsigned int * gpu_inputDim;
 
 /* Allocate vector of bases on device memory,
  * used to substitute character in the attempt of correcting reads
  * In order to reduce acces latency it will be stored on shared memory
  */
-__shared__ char bases[BASES];
+__shared__ char * bases[BASES];
 
 /****************  DEVICE FUNCTIONS  *********************/
 __device__ ushort2 matrix_maximum(unsigned short int ** v) {
@@ -71,7 +72,7 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
    
    int idx = blockIdx.x * blockDim.x + threadIdx.x;
    
-   if(idx >= gpu_inputDim)
+   if(idx >= *gpu_inputDim)
       return;
    
    char * read;
@@ -91,7 +92,7 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
    for(i=0; i<couple.x; i++) {
       rc[i] = read[i];
    }
-   rc[i] = bases[couple.y];
+   rc[i] = *bases[couple.y];
    for(i=couple.x+1; i<READS_LENGHT; i++) {
       rc[i] = read[i];
    }
@@ -106,12 +107,12 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
       return; //How to exit???
    }
    */
-   for(j=0;j < (READS_LENGHT-(gpu_l+1)); j++) {
+   for(j=0;j < (READS_LENGHT-(*gpu_l+1)); j++) {
       //Create tuple
-      for(i=j; i<j+gpu_l; i++) {
+      for(i=j; i<j + *gpu_l; i++) {
          tuple[i-j] = read[j];
       }
-      tuple[gpu_l] = '\0';
+      tuple[*gpu_l] = '\0';
       if( !(1/* TODO - query bloom filter for tuple */) ) {
          corrected_flag = 0;
         /* Check for trimming
@@ -120,7 +121,7 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
          */
          if( (j+8 - trim_indexes.y+2) > (trim_indexes.y - trim_indexes.x) ) {
             trim_indexes.x = trim_indexes.y+2;
-            trim_indexes.y = j+gpu_l-1;
+            trim_indexes.y = j + *gpu_l - 1;
          }
       }
       else {
@@ -172,17 +173,26 @@ int main (int argc, char * argv[]) {
     * Also on lines 231, 237, 325 and 331
     */
    char host_bases[BASES] = {'A', 'C', 'G','T'};
-   cudaMemcpyToSymbol((const char *)bases, (const void *)host_bases, sizeof(char) * BASES);
+   cudaMemcpyToSymbol((const char *)bases, (const void *)&host_bases, sizeof(char));
 
    /* Allocate and store the spectrum on the host,
     * reading it from the input file
     * 
     */
-   //TODO Spectrum variable declaration
+   uint64_t * hashed_spectrum;
+   int spectrum_size; //TODO
+   
+   if(!(hashed_spectrum = (uint64_t *)malloc(sizeof(uint64_t) * spectrum_size))) {
+      fprintf(stdout, "Error: allocation\n");
+      exit(1);
+   }
    
    FILE * spectrumFP = fopen(argv[2], "r");
    
-   //TODO Read spectrum bloom filter
+   for(i=0; i<spectrum_size; i++) {
+      fscanf(spectrumFP, "%lu", &hashed_spectrum[i]); //TODO
+      printf("%x\n", hashed_spectrum[i]);
+   }
    
    fclose(spectrumFP);
    
@@ -221,7 +231,11 @@ int main (int argc, char * argv[]) {
     * 
     * 
     */
-   //TODO -  use __constant__ qualifier
+   /*
+   HOW TO? TODO
+   __constant__ uint64_t * gpu_hashed_spectrum;
+   cudaMemcpyToSymbol((const char *)&gpu_hashed_spectrum, (const void *)hashed_spectrum, sizeof(uint64_t) * spectrum_size);
+   */
     
    /* Allocate reads on device memory as gpu_reads
     * Include memcopy of already filled data
@@ -240,13 +254,13 @@ int main (int argc, char * argv[]) {
     * Include memcopy
     * 
     */
-   cudaMemcpyToSymbol((const char *)&gpu_inputDim, (const void *)&inputDim, sizeof(unsigned int));
+   cudaMemcpyToSymbol((const char *)gpu_inputDim, (const void *)&inputDim, sizeof(unsigned int));
    
    /* Allocate l on device memory
     * Include memcopy
     * 
     */
-   cudaMemcpyToSymbol((const char *)&gpu_l, (const void *)&l, sizeof(unsigned short int));
+   cudaMemcpyToSymbol((const char *)gpu_l, (const void *)&l, sizeof(unsigned short int));
    
    /* Initialize voting_matrix of zeros
     * Then proceed with the allocation on device memory of gpu_voting_matrix

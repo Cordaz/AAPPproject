@@ -24,8 +24,8 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 	unsigned long n;				//spectrum dimension 
 	int l; 						//length of read
 	char* seq; 					//Read sequence
-	char cons;					//consume \n
-	
+	char cons;					//consume \n	
+
 	n = atoi(argv[2]);
 	l = atoi(argv[3]);
 
@@ -60,8 +60,9 @@ int main (int argc, char* argv[]){		//File name (read), spectrum dimension, leng
 	fclose(fp);
 	
 	bf = fopen(argv[4], "w+");
-	for(int k=0; k<n; k++)
+	for(int k=0; k<n; k++){
 		fprintf(bf, "%lu\n", bloom[k]);
+	}	
 	fclose(bf);
 	
 	free(bloom);
@@ -76,7 +77,7 @@ void SetBit(uint64_t* filter, unsigned long i, unsigned long n){
 	uint64_t bit = 1;
 	
 	bit = bit << pos;
-	//printf(", cell: %lu, bit: %lu\n", k, pos);
+	printf(", cell: %lu, bit: %lu\n", k, pos);
 	
 	filter[k] = filter[k] | bit;
 }
@@ -86,35 +87,35 @@ void HashRead(uint64_t* filter, char* read, unsigned long n){
 	unsigned long i;
 	
 	i = djb2_hash((unsigned char*)read);
-	//printf("djb2: %lu ", i);
+	printf("djb2: %lu ", i);
 	SetBit(filter, i, n);
 
 	i = MurmurHash64A(read, strlen(read), MSEED);
-	//printf("Murmurhash: %lu", i);
+	printf("Murmurhash: %lu", i);
 	SetBit(filter, i, n);
 	
 	i = APHash(read, strlen(read));
-	//printf("APHash: %lu", i);
+	printf("APHash: %lu", i);
 	SetBit(filter, i, n);
 	
 	i = CityHash64(read, strlen(read));
-	//printf("CityHash: %lu", i);
+	printf("CityHash: %lu", i);
 	SetBit(filter, i, n);
 	
 	i = spooky_hash64(read, strlen(read), SSEED);
-	//printf("SpookyHash: %lu", i);
+	printf("SpookyHash: %lu", i);
 	SetBit(filter, i, n);
 	
 	i = fnvhash(read);
-	//printf("FNVhash: %lu", i);
+	printf("FNVhash: %lu", i);
 	SetBit(filter, i, n);
 	
 	i = SDBMHash(read, strlen(read));
-	//printf("SDBMhash: %lu", i);
+	printf("SDBMhash: %lu", i);
 	SetBit(filter, i, n);
 	
 	i = RSHash(read, strlen(read));
-	//printf("RShash: %lu", i);
+	printf("RShash: %lu", i);
 	SetBit(filter, i, n);
 	
 }

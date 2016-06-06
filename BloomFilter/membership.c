@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include "hashes.h"
 #include "spooky.h"
 #include "city.h"
@@ -33,25 +34,23 @@ int main(int argc, char* argv[]){
 		fprintf(stdout, "Error: File not found\n");
 		exit(1);
 	}
-	fread(&cell, sizeof(unsigned long), 1, bf);
-	printf("%lu\n", cell);
+	fscanf(bf, "%lu", &cell);
+
 	if(feof(bf)){
 		fprintf(stdout, "Warning: Empty file\n");
 		exit(1);
 	}
 
 	//Load bloom filter
-	for(int i=0; i<n-1 && !feof(bf); i++){
-		bloom[i] = (uint64_t)cell;
-		fread(&cell, sizeof(unsigned long), 1, bf);
-		printf("%lu\n", cell);
+	for(int i=0; i<n && !feof(bf); i++){
+		bloom[i] = cell;
+		fscanf(bf, "%lu", &cell);
 	}
 	fclose(bf);
 	
 	/*DEBUG
 	for(int k=0; k<n; k++)
 		fprintf(stdout, "%lu\n", bloom[k]);
-	fclose(bf);
 	*/
 	
 	//Checking part
@@ -107,25 +106,25 @@ int CheckHash(uint64_t* filter, char* read, unsigned long n){
 			i = djb2_hash((unsigned char*)read);
 			break;
 		case 2:
-			i = MurmurHash64A(read, L, MSEED);
+			i = MurmurHash64A(read, strlen(read), MSEED);
 			break;
 		case 3:
-			i = APHash(read, L);
+			i = APHash(read, strlen(read));
 			break;
 		case 4:
-			i = CityHash64(read, L);
+			i = CityHash64(read, strlen(read));
 			break;
 		case 5:
-			i = spooky_hash64(read, L, SSEED);
+			i = spooky_hash64(read, strlen(read), SSEED);
 			break;
 		case 6:
 			i = fnvhash(read);
 			break;
 		case 7:
-			i = SDBMHash(read, L);
+			i = SDBMHash(read, strlen(read));
 			break;
 		case 8:
-			i = RSHash(read, L);
+			i = RSHash(read, strlen(read));
 			break;
 		
 		default: break;

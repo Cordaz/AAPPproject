@@ -24,7 +24,6 @@ void HandleError( cudaError_t err,
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 
 /**************** GLOBAL VARIABLE ************************/
-__shared__ unsigned int gpu_inputDim;
 
 /* Allocate vector of bases on device memory,
  * used to substitute character in the attempt of correcting reads
@@ -68,7 +67,7 @@ __device__ void gpu_strcpy(char * a, char * b) {
 
 /***************** FIXING KERNEL ***************************/
 
-__global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array, unsigned int * gpu_inputDim_global, char ** dev_bases) {
+__global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array, unsigned int * gpu_inputDim, char ** dev_bases) {
    ushort2 trim_indexes;
    trim_indexes.x = 0; //Starting index of longest substring
    trim_indexes.y = 0; //End index of longest substring
@@ -81,14 +80,13 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
     * 
     */
    if(threadIdx.x == 0) {
-      gpu_inputDim = *gpu_inputDim_global;
       for(i=0; i<BASES; i++) {
          bases[i] = *dev_bases[i];
       }
    }
    __synchthreads(); //TODO
    
-   if(idx >= gpu_inputDim)
+   if(idx >= *gpu_inputDim)
       return;
    
    char * read;
@@ -266,9 +264,9 @@ int main (int argc, char * argv[]) {
     * Include memcopy
     * 
     */
-   unsigned int * gpu_inputDim_global;
-   HANDLE_ERROR(cudaMalloc((void **)&gpu_inputDim_global, sizeof(unsigned int)));
-   HANDLE_ERROR(cudaMemcpy(gpu_inputDim_global, &inputDim, sizeof(unsigned int), cudaMemcpyHostToDevice));
+   unsigned int * gpu_inputDim;
+   HANDLE_ERROR(cudaMalloc((void **)&gpu_inputDim, sizeof(unsigned int)));
+   HANDLE_ERROR(cudaMemcpy(gpu_inputDim, &inputDim, sizeof(unsigned int), cudaMemcpyHostToDevice));
    
    /* Initialize voting_matrix of zeros
     * Then proceed with the allocation on device memory of gpu_voting_matrix
@@ -298,10 +296,7 @@ int main (int argc, char * argv[]) {
    
    //Allocate voting_matrix on device as gpu_voting_matrix
    unsigned short int *** gpu_voting_matrix;
-   if(cudaMalloc((void **)gpu_voting_matrix, sizeof(unsigned short int ***) * inputDim) == cudaErrorMemoryAllocation) {
-      fprintf(stdout, "Error: CUDA allocation\n");
-      exit(1);
-   }
+   HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix, sizeof(unsigned short int ***) * inputDim));
    for(i=0; i<inputDim; i++) {
       HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix[i], sizeof(unsigned short int **) * READS_LENGHT));
       for(j=0; j<inputDim; j++) {
@@ -330,7 +325,7 @@ int main (int argc, char * argv[]) {
     */
    
    //Execute kernel
-   fixing <<< inputDim/BLOCK_DIM, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, gpu_inputDim_global, dev_bases);
+   fixing <<< inputDim/BLOCK_DIM, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, gpu_inputDim, dev_bases);
    
    /************ RETRIEVE RESULT ********/
    

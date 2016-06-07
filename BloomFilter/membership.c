@@ -6,15 +6,14 @@
 #include "spooky.h"
 #include "city.h"
 
-#define BUF 255			//length of the filter cells on file
-#define L 11			//length of the reads
+#define L 10			//length of the reads
 #define MSEED 7127		//static seed for murmur function
 #define SSEED 5449		//static seed for spooky function
 
 int CheckBit(uint64_t* filter, unsigned long i, unsigned long n);
 int CheckHash(uint64_t* filter, char* read, unsigned long n);
 
-int main(int argc, char* argv[]){
+int main(int argc, char* argv[]){	//File name (filter to load), file name (reads of length 10, will be substring of read of length 35), spectrum dimension (will be read from first line of first file)
 
 	uint64_t* bloom;
 	unsigned long cell;
@@ -23,7 +22,7 @@ int main(int argc, char* argv[]){
 	char* seq;
 	char cons;
 	
-	n = atoi(argv[2]);
+	n = atoi(argv[3]);
 
 	if(!(bloom = (uint64_t*)malloc(n*sizeof(uint64_t)))){		
 		fprintf(stdout, "Error: Not enough memory\n");
@@ -56,11 +55,11 @@ int main(int argc, char* argv[]){
 	//Checking part
 
 	//with file
-	if(!(fp = fopen(argv[3], "r"))){
+	if(!(fp = fopen(argv[2], "r"))){
 		fprintf(stdout, "Error: File not found\n");
 		exit(1);
 	}
-	fgets(seq, L, fp);
+	fgets(seq, L+1, fp);
 	if(feof(fp)){
 		fprintf(stdout, "Warning: Empty file\n");
 		exit(1);
@@ -73,7 +72,7 @@ int main(int argc, char* argv[]){
 		else
 			printf("%s not in spectrum\n", seq);
 		
-		fgets(seq, L, fp);
+		fgets(seq, L+1, fp);
 	}
 	fclose(fp);
 	

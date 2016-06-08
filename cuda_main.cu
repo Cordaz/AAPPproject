@@ -8,7 +8,7 @@
 #define PARAM 5 //spectrum (bloom filter), dim, input, dim, output
 #define BASES 4
 #define BLOCK_DIM 16
-#define READS_LENGHT 35
+#define READS_LENGTH 35
 #define L 10
 
 /************ ERROR HANDLING *****************************/
@@ -37,7 +37,7 @@ __constant__ uint64_t ** gpu_hashed_spectrum;
 __device__ ushort2 matrix_maximum(unsigned short int ** v) {
    unsigned short int i, j, maximum=0;
    ushort2 couple;
-   for(i=0; i<READS_LENGHT; i++) {
+   for(i=0; i<READS_LENGTH; i++) {
       for(j=0;j<BASES;j++) {
          if(v[i][j] > maximum) {
             maximum = v[i][j];
@@ -101,12 +101,12 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
       return; //read is already correct
    }
    
-   char rc[READS_LENGHT+1];
+   char rc[READS_LENGTH+1];
    for(i=0; i<couple.x; i++) {
       rc[i] = read[i];
    }
    rc[i] = bases[couple.y];
-   for(i=couple.x+1; i<READS_LENGHT; i++) {
+   for(i=couple.x+1; i<READS_LENGTH; i++) {
       rc[i] = read[i];
    }
    
@@ -114,7 +114,7 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
    unsigned short int j;
    char tuple[L + 1];
    
-   for(j=0;j < (READS_LENGHT-(L+1)); j++) {
+   for(j=0;j < (READS_LENGTH-(L+1)); j++) {
       //Create tuple
       for(i=j; i<j + L; i++) {
          tuple[i-j] = read[j];
@@ -219,7 +219,7 @@ int main (int argc, char * argv[]) {
    }
    
    for(i=0; i<inputDim; i++) {
-      if(!(reads[i] = (char *)malloc(sizeof(char) * (READS_LENGHT+1)))) {
+      if(!(reads[i] = (char *)malloc(sizeof(char) * (READS_LENGTH+1)))) {
          fprintf(stdout, "Error: allocation\n");
          exit(1);
       }
@@ -228,7 +228,7 @@ int main (int argc, char * argv[]) {
    FILE * readsFP = fopen(argv[4], "r");
    
    for(i=0; i<inputDim; i++) {
-      fgets(reads[i], READS_LENGHT+1, readsFP);
+      fgets(reads[i], READS_LENGTH+1, readsFP);
       printf("%s\n", reads[i]);
    }
    
@@ -254,10 +254,10 @@ int main (int argc, char * argv[]) {
    char ** gpu_reads;
    HANDLE_ERROR(cudaMalloc((void **)&gpu_reads, inputDim * sizeof(char *)));
    for(i=0; i<inputDim; i++) {
-      HANDLE_ERROR(cudaMalloc((void **)&(gpu_reads[i]), (READS_LENGHT + 1) * sizeof(char)));
+      HANDLE_ERROR(cudaMalloc((void **)&(gpu_reads[i]), (READS_LENGTH + 1) * sizeof(char)));
    }
    for(i=0; i<inputDim; i++) {
-      HANDLE_ERROR(cudaMemcpy(gpu_reads[i], reads[i], sizeof(char) * (READS_LENGHT + 1), cudaMemcpyHostToDevice));
+      HANDLE_ERROR(cudaMemcpy(gpu_reads[i], reads[i], sizeof(char) * (READS_LENGTH + 1), cudaMemcpyHostToDevice));
    }
    
    /* Allocate inputDim on gpu memory as gpu_inputDim
@@ -279,11 +279,11 @@ int main (int argc, char * argv[]) {
       exit(1);
    }
    for(i=0; i<inputDim; i++) {
-      if(!(voting_matrix[i] = (unsigned short int **)malloc(sizeof(unsigned short int *) * READS_LENGHT))) {
+      if(!(voting_matrix[i] = (unsigned short int **)malloc(sizeof(unsigned short int *) * READS_LENGTH))) {
          fprintf(stdout, "Error: allocation\n");
          exit(1);
       }
-      for(j=0; j<READS_LENGHT; j++) {
+      for(j=0; j<READS_LENGTH; j++) {
          if(!(voting_matrix[i][j] = (unsigned short int *)malloc(sizeof(unsigned short int) * BASES))) {
             fprintf(stdout, "Error: allocation\n");
             exit(1);
@@ -298,7 +298,7 @@ int main (int argc, char * argv[]) {
    unsigned short int *** gpu_voting_matrix;
    HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix, sizeof(unsigned short int ***) * inputDim));
    for(i=0; i<inputDim; i++) {
-      HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix[i], sizeof(unsigned short int **) * READS_LENGHT));
+      HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix[i], sizeof(unsigned short int **) * READS_LENGTH));
       for(j=0; j<inputDim; j++) {
          HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix[i][j], sizeof(unsigned short int *) * BASES));
          for(h=0; h<BASES; h++) {
@@ -334,7 +334,7 @@ int main (int argc, char * argv[]) {
     * 
     */
     for(i=0; i<inputDim; i++) {
-      HANDLE_ERROR(cudaMemcpy(reads[i], gpu_reads[i], sizeof(char) * (READS_LENGHT + 1), cudaMemcpyDeviceToHost));
+      HANDLE_ERROR(cudaMemcpy(reads[i], gpu_reads[i], sizeof(char) * (READS_LENGTH + 1), cudaMemcpyDeviceToHost));
     } 
    
    

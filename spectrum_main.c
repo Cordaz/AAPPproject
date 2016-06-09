@@ -8,7 +8,7 @@
 #include "BloomFilter/spooky.h"
 
 #define PARAM 3 //input file (*.seq), output file (bloom filter), output file (read list)
-#define READS_LENGTH 34
+#define READS_LENGTH 35
 #define L 10 //l-tuple lenght
 #define M 6 //multiplicity
 #define SPECTRUM_MAX_SIZE 1048576 //BASES^L

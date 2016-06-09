@@ -12,11 +12,11 @@
 //#include "cuda_runtime.h"
 //#include "device_launch_parameters.h"
 
-#define PARAM 5 //spectrum (bloom filter), dim, input, dim, output
+#define PARAM 3 //input (bloom filter), input (reads), output
 #define BASES 4
 #define BLOCK_DIM 16
 #define DATA_PER_THREAD 10
-#define READS_LENGTH 34
+#define READS_LENGTH 35
 #define L 10
 
 /************ ERROR HANDLING *****************************/
@@ -73,7 +73,7 @@ __device__ void gpu_strcpy(char * a, char * b) {
 
 /***************** FIXING KERNEL ***************************/
 
-__global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array, unsigned int inputDim, uint64_t ** gpu_hashed_spectrum) {
+__global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array, unsigned int inputDim, uint64_t * gpu_hashed_spectrum) {
    ushort2 trim_indexes;
    trim_indexes.x = 0; //Starting index of longest substring
    trim_indexes.y = 0; //End index of longest substring
@@ -185,23 +185,27 @@ int main (int argc, char * argv[]) {
     * 
     */
    uint64_t * hashed_spectrum;
-   int spectrum_size = atoi(argv[2]);
+   unsigned int spectrum_size;
+   
+   FILE * spectrumFP = fopen(argv[1], "r");
+   fscanf(spectrumFP, "%u\n", &spectrum_size);
    
    if(!(hashed_spectrum = (uint64_t *)malloc(sizeof(uint64_t) * spectrum_size))) {
       fprintf(stdout, "Error: allocation\n");
       exit(1);
    }
    
-   FILE * spectrumFP = fopen(argv[1], "r");
-   
    for(i=0; i<spectrum_size; i++) {
       fscanf(spectrumFP, "%lu", &hashed_spectrum[i]);
-      printf("%lu\n", hashed_spectrum[i]);
+      //printf("%lu\n", hashed_spectrum[i]);
    }
    
    fclose(spectrumFP);
    
-   const unsigned int inputDim = atoi(argv[4]);
+   unsigned int inputDim;
+   
+   FILE * readsFP = fopen(argv[2], "r");
+   fscanf(readsFP, "%u\n", &inputDim);
    
    /* Allocate and read from input file the sequence reads,
     * on host memory
@@ -220,11 +224,10 @@ int main (int argc, char * argv[]) {
       }
    }
    
-   FILE * readsFP = fopen(argv[3], "r");
-   
    for(i=0; i<inputDim; i++) {
-      fgets(reads[i], READS_LENGTH+1, readsFP);
-      printf("%s\n", reads[i]);
+      //fgets(reads[i], READS_LENGTH+1, readsFP);
+      fscanf(readsFP, "%s\n", reads[i]);
+      //printf("%s\n", reads[i]);
    }
    
    fclose(readsFP);
@@ -236,7 +239,7 @@ int main (int argc, char * argv[]) {
     * 
     * 
     */
-   uint64_t ** gpu_hashed_spectrum;
+   uint64_t * gpu_hashed_spectrum;
    HANDLE_ERROR(cudaMalloc((void **)&gpu_hashed_spectrum, sizeof(uint64_t *) * spectrum_size));
    for(i=0; i<spectrum_size; i++) {
       HANDLE_ERROR(cudaMalloc((void **)&gpu_hashed_spectrum[i], sizeof(uint64_t)));
@@ -337,7 +340,7 @@ int main (int argc, char * argv[]) {
    /************* WRITE OUT RESULTS ********/
    
    FILE * outFP;
-   outFP = fopen(argv[5], "w");
+   outFP = fopen(argv[3], "w+");
    
    for(i=0; i<inputDim; i++) {
       //Ignore discarded reads

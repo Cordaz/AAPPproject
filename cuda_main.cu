@@ -11,6 +11,9 @@
 //#include <cuda_runtime_api.h>
 //#include "cuda_runtime.h"
 //#include "device_launch_parameters.h"
+#include "BloomFilter/hashes.h"
+#include "BloomFilter/city.h"
+#include "BloomFilter/spooky.h"
 
 #define PARAM 3 //input (bloom filter), input (reads), output
 #define BASES 4
@@ -18,6 +21,9 @@
 #define DATA_PER_THREAD 10
 #define READS_LENGTH 35
 #define L 10
+
+#define MSEED 7127		//static seed for murmur function
+#define SSEED 5449		//static seed for spooky function
 
 /************ ERROR HANDLING *****************************/
 void HandleError( cudaError_t err,
@@ -30,6 +36,10 @@ void HandleError( cudaError_t err,
     }
 }
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
+
+/**************** PROTOTYPES *****************************/
+__device__ int CheckBit(uint64_t *, unsigned long, unsigned int);
+__device__ int CheckHash(uint64_t *, char *, unsigned int);
 
 /**************** GLOBAL VARIABLE ************************/
 
@@ -77,7 +87,7 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
    ushort2 trim_indexes;
    trim_indexes.x = 0; //Starting index of longest substring
    trim_indexes.y = 0; //End index of longest substring
-   short int i, h;
+   unsigned short int i, h;
    
    int idx = blockIdx.x * blockDim.x + threadIdx.x;
    
@@ -105,7 +115,7 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
       if(idx + inputDim/DATA_PER_THREAD * h >= inputDim)
          return;
       read = (char *)reads[idx + inputDim/DATA_PER_THREAD * h];
-      voting_matrix = (unsigned short int **)voting_matrix_array[idx];
+      voting_matrix = (unsigned short int **)voting_matrix_array[idx + inputDim/DATA_PER_THREAD * h];
       
       couple = matrix_maximum(voting_matrix);
       
@@ -130,7 +140,7 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
             tuple[i-j] = read[j];
          }
          tuple[L] = '\0';
-         if( !(1/* TODO - query bloom filter for tuple */) ) {
+         if( !(CheckHash(gpu_hashed_spectrum, tuple, inputDim)) ) { /* Query bloom filter for tuple */
             corrected_flag = 0;
            /* Check for trimming
             * If current subsequence is longer than previous one then update
@@ -147,7 +157,8 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
       }
       
       if(corrected_flag) {
-         gpu_strcpy(reads[idx + inputDim/DATA_PER_THREAD * h], rc); //Return corrected read
+         //gpu_strcpy(reads[idx + inputDim/DATA_PER_THREAD * h], rc); //Return corrected read
+         gpu_strcpy(read, rc); //Return corrected read
          continue;
       }
       
@@ -157,12 +168,13 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
             read[j] = rc[i];
          }
          read[j] = '\0';
-         gpu_strcpy(reads[idx + inputDim/DATA_PER_THREAD * h], read);
+         //gpu_strcpy(reads[idx + inputDim/DATA_PER_THREAD * h], read);
          continue;
       }
       
       //Uncorrect read, return empty string
-      reads[idx + inputDim/DATA_PER_THREAD * h][0] = '\0';
+      //reads[idx + inputDim/DATA_PER_THREAD * h][0] = '\0';
+      read[0] = '\0';
    }
 }
 
@@ -171,7 +183,7 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
 /********************** MAIN **************************/
 
 int main (int argc, char * argv[]) {
-   int i, j, h;
+   int i, j;
    
    if(argc < PARAM+1) {
       fprintf(stdout, "Error: parameters\n");
@@ -240,24 +252,31 @@ int main (int argc, char * argv[]) {
     * 
     */
    uint64_t * gpu_hashed_spectrum;
+   uint64_t * gpu_hashed_spectrum_h = new uint64_t [spectrum_size];
    HANDLE_ERROR(cudaMalloc((void **)&gpu_hashed_spectrum, sizeof(uint64_t *) * spectrum_size));
    for(i=0; i<spectrum_size; i++) {
-      HANDLE_ERROR(cudaMalloc((void **)&gpu_hashed_spectrum[i], sizeof(uint64_t)));
-      HANDLE_ERROR(cudaMemcpy((void *)&gpu_hashed_spectrum[i], (const void *)&hashed_spectrum[i], sizeof(char), cudaMemcpyHostToDevice));
+      HANDLE_ERROR(cudaMalloc((void **)&gpu_hashed_spectrum_h[i], sizeof(uint64_t)));
    }
+   for(i=0; i<spectrum_size; i++) {
+      HANDLE_ERROR(cudaMemcpy((void *)gpu_hashed_spectrum_h[i], (const void *)hashed_spectrum[i], sizeof(uint64_t), cudaMemcpyHostToDevice));
+   }
+   HANDLE_ERROR(cudaMemcpy(gpu_hashed_spectrum, gpu_hashed_spectrum_h, spectrum_size * sizeof(uint64_t *), cudaMemcpyHostToDevice));
     
    /* Allocate reads on device memory as gpu_reads
     * Include memcopy of already filled data
     * 
     */
    char ** gpu_reads;
+   char ** gpu_reads_h = new char*[inputDim];
    HANDLE_ERROR(cudaMalloc((void **)&gpu_reads, inputDim * sizeof(char *)));
    for(i=0; i<inputDim; i++) {
-      HANDLE_ERROR(cudaMalloc((void **)&(gpu_reads[i]), (READS_LENGTH + 1) * sizeof(char)));
+      HANDLE_ERROR(cudaMalloc((void **)&(gpu_reads_h[i]), (READS_LENGTH + 1) * sizeof(char)));
    }
    for(i=0; i<inputDim; i++) {
-      HANDLE_ERROR(cudaMemcpy(gpu_reads[i], reads[i], sizeof(char) * (READS_LENGTH + 1), cudaMemcpyHostToDevice));
+      HANDLE_ERROR(cudaMemcpy(gpu_reads_h[i], reads[i], sizeof(char) * (READS_LENGTH + 1), cudaMemcpyHostToDevice));
    }
+
+   HANDLE_ERROR(cudaMemcpy(gpu_reads, gpu_reads_h, inputDim * sizeof(char *), cudaMemcpyHostToDevice));
    
    /* Initialize voting_matrix
     * Then proceed with the allocation on device memory of gpu_voting_matrix
@@ -284,18 +303,15 @@ int main (int argc, char * argv[]) {
    
    //Allocate voting_matrix on device as gpu_voting_matrix
    unsigned short int *** gpu_voting_matrix;
+   unsigned short int *** gpu_voting_matrix_h = new unsigned short int ** [BASES];
    HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix, sizeof(unsigned short int ***) * inputDim));
    for(i=0; i<inputDim; i++) {
-      HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix[i], sizeof(unsigned short int **) * READS_LENGTH));
-      for(j=0; j<inputDim; j++) {
-         HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix[i][j], sizeof(unsigned short int *) * BASES));
-         for(h=0; h<BASES; h++) {
-            HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix[i][j][h], sizeof(unsigned short int)));
-            //Copy initialized matrix
-            HANDLE_ERROR(cudaMemcpy((void *)&gpu_voting_matrix[i][j][h], (const void *)&voting_matrix[i][j][h], sizeof(unsigned short int), cudaMemcpyHostToDevice));
-         }
-      }
+      HANDLE_ERROR(cudaMalloc((void **)&gpu_voting_matrix_h[i], sizeof(unsigned short int) * READS_LENGTH * BASES));
    }
+   for(i=0; i<inputDim; i++) {
+      HANDLE_ERROR(cudaMemcpy(gpu_voting_matrix_h[i], voting_matrix[i], sizeof(unsigned short int **) * READS_LENGTH * BASES, cudaMemcpyHostToDevice));
+   }
+   HANDLE_ERROR(cudaMemcpy(gpu_voting_matrix_h, gpu_voting_matrix_h, sizeof(unsigned short int **) * inputDim, cudaMemcpyHostToDevice));
    
    /************* VOTING ***************/
    
@@ -353,4 +369,61 @@ int main (int argc, char * argv[]) {
    free(reads);
    
    return 0;
+}
+
+/***************************** UTILITY FUNCTION **************************************************/
+//Check that the bit is in the filter
+__device__ int CheckBit(uint64_t* filter, unsigned long i, unsigned int n) {
+	unsigned long k = i % n;
+	unsigned long pos = i % 64;
+	uint64_t bit = 1, res;
+	bit = bit << pos;
+	res = filter[k] & bit;
+	if(res !=0)
+		return 1;
+	else
+		return 0;
+}
+
+//Hashes the read and checks
+__device__ int CheckHash(uint64_t* filter, char* read, unsigned int n) {
+	int flag = 1;
+	unsigned long i;
+
+	for(int k=1; k<=8 && flag; k++){
+		
+		switch (k){
+		
+		case 1:
+			i = djb2_hash((unsigned char*)read);
+			break;
+		case 2:
+			i = MurmurHash64A(read, L, MSEED);
+			break;
+		case 3:
+			i = APHash(read, L);
+			break;
+		case 4:
+			i = CityHash64(read, L);
+			break;
+		case 5:
+			i = spooky_hash64(read, L, SSEED);
+			break;
+		case 6:
+			i = fnvhash(read);
+			break;
+		case 7:
+			i = SDBMHash(read, L);
+			break;
+		case 8:
+			i = RSHash(read, L);
+			break;
+		
+		default: break;
+		}
+		
+		flag = CheckBit(filter, i, n);
+	}
+
+	return flag;
 }

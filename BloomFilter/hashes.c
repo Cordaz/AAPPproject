@@ -5,7 +5,7 @@ const uint64_t FNV_PRIME    = 1099511628211;
 const uint64_t OFFSET_BASIS = 14695981039346656037UL;
 
 //djb2 hash
-unsigned long djb2_hash(unsigned char *str){
+__device__ unsigned long djb2_hash(unsigned char *str){
     unsigned long hash = 5381;
     int c;
 
@@ -16,7 +16,7 @@ unsigned long djb2_hash(unsigned char *str){
 }
 
 //MurmurHash
-uint64_t MurmurHash64A ( const void * key, int len, unsigned int seed )
+__device__ uint64_t MurmurHash64A ( const void * key, int len, unsigned int seed )
 {
 	const uint64_t m = 0xc6a4a7935bd1e995;
 	const int r = 47;
@@ -60,7 +60,7 @@ uint64_t MurmurHash64A ( const void * key, int len, unsigned int seed )
 } 
 
 //AP hash
-uint64_t APHash(char* str, unsigned int length) {
+__device__ uint64_t APHash(char* str, unsigned int length) {
 	uint64_t hash = 0xAAAAAAAA;
 	unsigned int i = 0;
 
@@ -74,7 +74,7 @@ uint64_t APHash(char* str, unsigned int length) {
 }
 
 //FNV hash
-uint64_t fnvhash(char * string){
+__device__ uint64_t fnvhash(char * string){
    uint64_t hash = OFFSET_BASIS;
    for(uint8_t * c = (uint8_t*)string; *c != 0; ++c){
       hash ^= *c;
@@ -84,7 +84,7 @@ uint64_t fnvhash(char * string){
 }
 
 //SDBM hash
-uint64_t SDBMHash(char* str, unsigned int length) {
+__device__ uint64_t SDBMHash(char* str, unsigned int length) {
 	uint64_t hash = 0;
 	unsigned int i = 0;
 
@@ -97,7 +97,7 @@ uint64_t SDBMHash(char* str, unsigned int length) {
 }
 
 //RS hash
-uint64_t RSHash(char* str, unsigned int length) {
+__device__ uint64_t RSHash(char* str, unsigned int length) {
 	unsigned int b = 378551;
 	unsigned int a = 63689;
 	uint64_t hash = 0;

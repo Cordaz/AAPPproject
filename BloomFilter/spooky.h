@@ -33,6 +33,10 @@
 #define SC_BLOCKSIZE	(8 * SC_NUMVARS)
 #define SC_BUFSIZE		(2 * SC_BLOCKSIZE)
 
+#ifdef ONLYC
+#define __device__
+#endif
+
 struct spooky_state
 {
 	uint64_t m_data[2 * SC_NUMVARS];
@@ -41,7 +45,7 @@ struct spooky_state
 	unsigned char m_remainder;
 };
 
-void spooky_shorthash
+__device__ void spooky_shorthash
 (
 	const void *message,
 	size_t length,
@@ -49,21 +53,21 @@ void spooky_shorthash
 	uint64_t *hash2
 );
 
-void spooky_init
+__device__ void spooky_init
 (
 	struct spooky_state *state,
 	uint64_t hash1,
 	uint64_t hash2
 );
 
-void spooky_update
+__device__ void spooky_update
 (
 	struct spooky_state *state,
 	const void *msg,
 	size_t len
 );
 
-void spooky_final
+__device__ void spooky_final
 (
 	struct spooky_state *state,
 	uint64_t *hash1,
@@ -71,7 +75,7 @@ void spooky_final
 );
 
 //hash1/2 doubles as input parameter for seed1/2 and output for hash1/2
-void spooky_hash128
+__device__ void spooky_hash128
 (
 	const void *message,
 	size_t length,
@@ -79,14 +83,14 @@ void spooky_hash128
 	uint64_t *hash2
 );
 
-uint64_t spooky_hash64
+__device__ uint64_t spooky_hash64
 (
 	const void *message,
 	size_t len,
 	uint64_t seed
 );
 
-uint32_t spooky_hash32
+__device__ uint32_t spooky_hash32
 (
 	const void *message,
 	size_t len,

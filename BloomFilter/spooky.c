@@ -68,7 +68,7 @@
 //  * does not need any other special mathematical properties
 #define SC_CONST 0xdeadbeefdeadbeefLL
 
-static inline uint64_t rot64(uint64_t x, int k)
+__device__ static inline uint64_t rot64(uint64_t x, int k)
 {
 	return (x << k) | (x >> (64 - k));
 }
@@ -86,7 +86,7 @@ static inline uint64_t rot64(uint64_t x, int k)
 //   When run forward or backwards one Mix
 // I tried 3 pairs of each; they all differed by at least 212 bits.
 //
-static inline void mix
+__device__ static inline void mix
 (
 	const uint64_t *data,
 	uint64_t *s0, uint64_t *s1, uint64_t *s2,  uint64_t *s3,
@@ -124,7 +124,7 @@ static inline void mix
 // Two iterations was almost good enough for a 64-bit result, but a
 // 128-bit result is reported, so End() does three iterations.
 //
-static inline void endPartial
+__device__ static inline void endPartial
 (
 	uint64_t *h0, uint64_t *h1, uint64_t *h2,  uint64_t *h3,
 	uint64_t *h4, uint64_t *h5, uint64_t *h6,  uint64_t *h7,
@@ -145,7 +145,7 @@ static inline void endPartial
 	*h10+= *h0;		*h1 ^= *h10;	*h0 = rot64(*h0, 54);
 }
 
-static inline void end
+__device__ static inline void end
 (
 	uint64_t *h0,	uint64_t *h1,	uint64_t *h2,	uint64_t *h3,
 	uint64_t *h4,	uint64_t *h5,	uint64_t *h6,	uint64_t *h7,
@@ -172,7 +172,7 @@ static inline void end
 // with diffs defined by either xor or subtraction
 // with a base of all zeros plus a counter, or plus another bit, or random
 //
-static inline void short_mix
+__device__ static inline void short_mix
 (
 	uint64_t *h0,
 	uint64_t *h1,
@@ -206,7 +206,7 @@ static inline void short_mix
 // For every pair of input bits,
 // with probability 50 +- .75% (the worst case is approximately that)
 //
-static inline void short_end
+__device__ static inline void short_end
 (
 	uint64_t *h0,
 	uint64_t *h1,
@@ -227,7 +227,7 @@ static inline void short_end
 	*h1 ^= *h0;  *h0 = rot64(*h0, 63);  *h1 += *h0;
 }
 
-void spooky_shorthash
+__device__ void spooky_shorthash
 (
 	const void *message,
 	size_t length,
@@ -332,7 +332,7 @@ void spooky_shorthash
 	*hash2 = b;
 }
 
-void spooky_init
+__device__ void spooky_init
 (
 	struct spooky_state *state,
 	uint64_t seed1,
@@ -345,7 +345,7 @@ void spooky_init
 	state->m_state[1] = seed2;
 }
 
-void spooky_update
+__device__ void spooky_update
 (
 	struct spooky_state *state,
 	const void *message,
@@ -452,7 +452,7 @@ void spooky_update
 	state->m_state[11] = h11;
 }
 
-void spooky_final
+__device__ void spooky_final
 (
 	struct spooky_state *state,
 	uint64_t *hash1,
@@ -504,7 +504,7 @@ void spooky_final
 	*hash2 = h1;
 }
 
-void spooky_hash128
+__device__ void spooky_hash128
 (
 	const void *message,
 	size_t length,
@@ -568,7 +568,7 @@ void spooky_hash128
 	*hash2 = h1;
 }
 
-uint64_t spooky_hash64
+__device__ uint64_t spooky_hash64
 (
 	const void *message,
 	size_t length,
@@ -580,7 +580,7 @@ uint64_t spooky_hash64
 	return hash1;
 }
 
-uint32_t spooky_hash32
+__device__ uint32_t spooky_hash32
 (
 	const void *message,
 	size_t length,

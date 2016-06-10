@@ -140,7 +140,7 @@ __global__ void fixing(char ** reads, unsigned short int *** voting_matrix_array
             tuple[i-j] = read[j];
          }
          tuple[L] = '\0';
-         if( !(CheckHash(gpu_hashed_spectrum, tuple, inputDim)) ) { /* Query bloom filter for tuple */
+         if( !(1/*CheckHash(gpu_hashed_spectrum, tuple, inputDim)*/) ) { /* Query bloom filter for tuple */
             corrected_flag = 0;
            /* Check for trimming
             * If current subsequence is longer than previous one then update
@@ -373,6 +373,7 @@ int main (int argc, char * argv[]) {
 
 /***************************** UTILITY FUNCTION **************************************************/
 //Check that the bit is in the filter
+/*
 __device__ int CheckBit(uint64_t* filter, unsigned long i, unsigned int n) {
 	unsigned long k = i % n;
 	unsigned long pos = i % 64;
@@ -427,3 +428,4 @@ __device__ int CheckHash(uint64_t* filter, char* read, unsigned int n) {
 
 	return flag;
 }
+*/

@@ -49,6 +49,7 @@ void HashRead(uint64_t *, char *, unsigned int);
 void rm_newline(char *);
 void list_to_array(list_t *, char **);
 list_t * add_elem(list_t *, char *);
+void free_list(list_t *);
 
 /******************** MAIN ***********************/
 int main (int argc, char * argv[]) {
@@ -111,7 +112,9 @@ int main (int argc, char * argv[]) {
    }
    
    list_to_array(reads_list, reads);
-   //free_list(reads_list); TODO
+   printf("Freeing reads_list\n");
+   free_list(reads_list);
+   printf("Freed reads_list\n");
    
    
    //Compute spectrum (Extract freqeunt tuples from counter)
@@ -140,7 +143,9 @@ int main (int argc, char * argv[]) {
       }
    }
    list_to_array(tuples_list, tuples);
-   //free_list(tuples_list); TODO
+   printf("Freeing tuples_list\n");
+   free_list(tuples_list);
+   printf("Freed tuples_list\n");
    
    /*
    printf("DEBUG: printing array of tuples (dim: %u)\n", spectrum_size);
@@ -382,4 +387,12 @@ void rm_newline(char * str) {
    for(i=0; i<strlen(str) && str[i] != '\n'; i++)
       ;
    str[i] = '\0';
+}
+
+void free_list(list_t * head) {
+   list_t * curr;
+   while ( (curr = head) ) {
+      head = head->next;
+      free(curr);
+   }
 }

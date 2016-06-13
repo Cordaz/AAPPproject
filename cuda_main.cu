@@ -111,9 +111,34 @@ int main (int argc, char * argv[]) {
    HANDLE_ERROR(cudaMalloc(&gpu_reads, sizeof(char) * inputDim * (READS_LENGTH+1)));
    HANDLE_ERROR(cudaMemcpy(gpu_reads, reads, sizeof(char) * inputDim * (READS_LENGTH+1), cudaMemcpyHostToDevice));
    
+   /* Allocate space gpu_voting_matrix
+    * 
+    */
+   unsigned short int * gpu_voting_matrix;
+   HANDLE_ERROR(cudaMalloc(&gpu_voting_matrix, sizeof(unsigned short int) * inputDim * READS_LENGTH * BASES));
+   
+   
    /************ KERNEL **************************/
    
+   /************* VOTING ***************/
    
+   /* Already allocated and initializated voting_matrix and gpu_voting_matrix;
+    * reads and gpu_reads allocated and filled with data;
+    * inputDim is defined as gpu_inputDim;
+    */
+    
+    //Execute kernel
+    //voting <<< inputDim/BLOCK_DIM/DATA_PER_THREAD, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, inputDim, gpu_hashed_spectrum, spectrum_size);   
+   
+   /************* FIXING ***************/
+   
+   /* Assume gpu_voting_matrix already computed and stored in device memory,
+    * as gpu_reads. Do not remove from the device memory
+    * 
+    */
+   
+   //Execute kernel
+   //fixing <<< inputDim/BLOCK_DIM/DATA_PER_THREAD, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, inputDim, gpu_hashed_spectrum, spectrum_size);
    
    
    /*********** READ BACK ************************/

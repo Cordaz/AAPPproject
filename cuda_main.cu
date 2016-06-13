@@ -100,6 +100,8 @@ int main (int argc, char * argv[]) {
     * 
     */
    uint64_t * gpu_hashed_spectrum;
+   HANDLE_ERROR(cudaMalloc(&gpu_hashed_spectrum, sizeof(uint64_t) * spectrum_size));
+   HANDLE_ERROR(cudaMemcpy(gpu_hashed_spectrum, hashed_spectrum, sizeof(uint64_t) * spectrum_size, cudaMemcpyHostToDevice));
    
    /* Allocate reads on device memory as gpu_reads
     * Include memcopy of already filled data
@@ -117,6 +119,13 @@ int main (int argc, char * argv[]) {
    /*********** READ BACK ************************/
    
    HANDLE_ERROR(cudaMemcpy(reads, gpu_reads, sizeof(char) * inputDim * (READS_LENGTH+1), cudaMemcpyDeviceToHost));
+   
+   /*
+   //DEBUG hashed_spectrum
+   HANDLE_ERROR(cudaMemcpy(hashed_spectrum, gpu_hashed_spectrum, sizeof(uint64_t) * spectrum_size, cudaMemcpyDeviceToHost));
+   for(i=0; i<spectrum_size;i++)
+      printf("%lu\n", *(hashed_spectrum + i));
+   */
    
    /*********** WRITE OUT ************************/
    

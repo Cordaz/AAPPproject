@@ -222,106 +222,94 @@ __global__ void voting(char * reads, unsigned short int * voting_matrix_array, u
 /***************** FIXING KERNEL ***************************/
 
 __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, unsigned int inputDim, uint64_t * gpu_hashed_spectrum, unsigned int spectrum_size) {
+   ushort2 trim_indexes;
+   trim_indexes.x = 0; //Starting index of longest substring
+   trim_indexes.y = 0; //End index of longest substring
+   unsigned short int i, h;
+   
    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-   int h, j;
+   
+   /* If first thread in the block should copy in shared memory
+    * the variables from the global memory
+    * 
+    */
+   if(threadIdx.x == 0) {
+      bases[0] = 'A';
+      bases[1] = 'C';
+      bases[2] = 'G';
+      bases[3] = 'T';
+   }
+   __syncthreads();
+   
    char * read;
+   unsigned short int * voting_matrix;
+   char rc[READS_LENGTH+1];
+   unsigned short int j;
+   char tuple[L+1];
+   bool corrected_flag, trimmed_flag;
+   ushort2 couple;
+   
    for(h=0; h<DATA_PER_THREAD; h++) {
       if(idx + inputDim/DATA_PER_THREAD * h >= inputDim)
          return;
       read = reads + (idx + inputDim/DATA_PER_THREAD * h) * (READS_LENGTH+1);
-      for(j=0; j<READS_LENGTH; j++)
-         *(read+j) = 'N';
-   }
-   if(0) {
-                                 ushort2 trim_indexes;
-                                 trim_indexes.x = 0; //Starting index of longest substring
-                                 trim_indexes.y = 0; //End index of longest substring
-                                 unsigned short int i, h;
-                                 
-                                 int idx = blockIdx.x * blockDim.x + threadIdx.x;
-                                 
-                                 /* If first thread in the block should copy in shared memory
-                                  * the variables from the global memory
-                                  * 
-                                  */
-                                 if(threadIdx.x == 0) {
-                                    bases[0] = 'A';
-                                    bases[1] = 'C';
-                                    bases[2] = 'G';
-                                    bases[3] = 'T';
-                                 }
-                                 __syncthreads();
-                                 
-                                 char * read;
-                                 unsigned short int * voting_matrix;
-                                 char rc[READS_LENGTH+1];
-                                 unsigned short int j;
-                                 char tuple[L+1];
-                                 bool corrected_flag, trimmed_flag;
-                                 ushort2 couple;
-                                 
-                                 for(h=0; h<DATA_PER_THREAD; h++) {
-                                    if(idx + inputDim/DATA_PER_THREAD * h >= inputDim)
-                                       return;
-                                    read = reads + (idx + inputDim/DATA_PER_THREAD * h) * (READS_LENGTH+1);
-                                    voting_matrix = voting_matrix_array + (idx + inputDim/DATA_PER_THREAD * h) * READS_LENGTH * BASES;
-                                    
-                                    couple = matrix_maximum(voting_matrix);
-                                    
-                                    if(*(voting_matrix + couple.x * BASES + couple.y) == 0) {
-                                       continue; //read is already correct
-                                    }
-                                    
-                                    for(i=0; i<couple.x; i++) {
-                                       rc[i] = *(read+i);
-                                    }
-                                    rc[i] = bases[couple.y];
-                                    for(i=couple.x+1; i<READS_LENGTH+1; i++) {
-                                       rc[i] = *(read+i);
-                                    }
-                                    
-                                    corrected_flag=1;
-                                    trimmed_flag=0;
-                                    
-                                    for(j=0;j < (READS_LENGTH-(L+1)); j++) {
-                                       //Create tuple
-                                       for(i=j; i<j + L; i++) {
-                                          tuple[i-j] = *(read+j);
-                                       }
-                                       tuple[L] = '\0';
-                                       if( !(1/*CheckHash(gpu_hashed_spectrum, tuple, inputDim)*/) ) { /* Query bloom filter for tuple */
-                                          corrected_flag = 0;
-                                         /* Check for trimming
-                                          * If current subsequence is longer than previous one then update
-                                          * Else the longest subsequent is already stored
-                                          */
-                                          if( (j+8 - trim_indexes.y+2) > (trim_indexes.y - trim_indexes.x) ) {
-                                             trim_indexes.x = trim_indexes.y+2;
-                                             trim_indexes.y = j + L - 1;
-                                          }
-                                       }
-                                       else {
-                                          trimmed_flag = 1;
-                                       }
-                                    }
-                                    
-                                    if(corrected_flag) {
-                                       gpu_strcpy(read, rc); //Return corrected read
-                                       continue;
-                                    }
-                                    
-                                    if(trimmed_flag) {
-                                       //Trim read
-                                       for(i=trim_indexes.x, j=0; i<trim_indexes.y; i++, j++) {
-                                          *(read+j) = rc[i];
-                                       }
-                                       *(read+j) = '\0';
-                                       continue;
-                                    }
-                                    
-                                    //Uncorrect read, return empty string
-                                    *(read) = '\0';
-                                 }
+      voting_matrix = voting_matrix_array + (idx + inputDim/DATA_PER_THREAD * h) * READS_LENGTH * BASES;
+      
+      couple = matrix_maximum(voting_matrix);
+      
+      if(*(voting_matrix + couple.x * BASES + couple.y) == 0) {
+         continue; //read is already correct
+      }
+      
+      for(i=0; i<couple.x; i++) {
+         rc[i] = *(read+i);
+      }
+      rc[i] = bases[couple.y];
+      for(i=couple.x+1; i<READS_LENGTH+1; i++) {
+         rc[i] = *(read+i);
+      }
+      
+      corrected_flag=1;
+      trimmed_flag=0;
+      
+      for(j=0;j < (READS_LENGTH-(L+1)); j++) {
+         //Create tuple
+         for(i=j; i<j + L; i++) {
+            tuple[i-j] = *(read+j);
+         }
+         tuple[L] = '\0';
+         if( !(CheckHash(gpu_hashed_spectrum, tuple, inputDim)) ) { /* Query bloom filter for tuple */
+            corrected_flag = 0;
+           /* Check for trimming
+            * If current subsequence is longer than previous one then update
+            * Else the longest subsequent is already stored
+            */
+            if( (j+8 - trim_indexes.y+2) > (trim_indexes.y - trim_indexes.x) ) {
+               trim_indexes.x = trim_indexes.y+2;
+               trim_indexes.y = j + L - 1;
+            }
+         }
+         else {
+            trimmed_flag = 1;
+         }
+      }
+      
+      if(corrected_flag) {
+         gpu_strcpy(read, rc); //Return corrected read
+         continue;
+      }
+      
+      if(trimmed_flag) {
+         //Trim read
+         for(i=trim_indexes.x, j=0; i<trim_indexes.y; i++, j++) {
+            *(read+j) = rc[i];
+         }
+         *(read+j) = '\0';
+         continue;
+      }
+      
+      //Uncorrect read, return empty string
+      *(read) = '\0';
    }
 }
 
@@ -420,9 +408,31 @@ int main (int argc, char * argv[]) {
     * reads and gpu_reads allocated and filled with data;
     * inputDim is defined as gpu_inputDim;
     */
-    
-    //Execute kernel
-    //voting <<< inputDim/BLOCK_DIM/DATA_PER_THREAD, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, inputDim, gpu_hashed_spectrum, spectrum_size);   
+   
+   //Execute kernel
+   voting <<< inputDim/BLOCK_DIM/DATA_PER_THREAD, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, inputDim, gpu_hashed_spectrum, spectrum_size);   
+   
+   /*
+   //DEBUG
+   
+   unsigned short int * v;
+   v = (unsigned short int *)malloc(sizeof(unsigned short int) * inputDim * READS_LENGTH * BASES);
+   HANDLE_ERROR(cudaMemcpy(v, gpu_voting_matrix, sizeof(unsigned short int) * inputDim * READS_LENGTH * BASES, cudaMemcpyDeviceToHost));
+   
+   for(int k=0; k<inputDim; k++) {
+      for(i=0; i<BASES; i++) {
+         for(j=0; j<READS_LENGTH; j++) {
+            printf("%3d", *(v + j*BASES + i));
+            //if (*(v + j*BASES + i)) printf("%3d", *(v + j*BASES + i));
+         }
+         printf("\n");
+      }
+      printf("\n\n\n");
+   }
+   
+   //END DEBUG
+   */
+   
    
    /************* FIXING ***************/
    
@@ -432,7 +442,7 @@ int main (int argc, char * argv[]) {
     */
    
    //Execute kernel
-   fixing <<< inputDim/BLOCK_DIM/DATA_PER_THREAD, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, inputDim, gpu_hashed_spectrum, spectrum_size);
+   //fixing <<< inputDim/BLOCK_DIM/DATA_PER_THREAD, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, inputDim, gpu_hashed_spectrum, spectrum_size);
    
    
    /*********** READ BACK ************************/
@@ -451,10 +461,12 @@ int main (int argc, char * argv[]) {
    FILE * outFP = fopen(argv[3], "w+");
    
    for(i=0; i<inputDim; i++) {
-      for(j=0; j<READS_LENGTH; j++) {
-         fprintf(outFP, "%c", *(reads + (READS_LENGTH+1) * i + j));
+      if(*(reads + (READS_LENGTH+1) * i) != '\0') { //If not discarded
+         for(j=1; j<READS_LENGTH && *(reads + (READS_LENGTH+1) * i + j) != '\0'; j++) {
+            fprintf(outFP, "%c", *(reads + (READS_LENGTH+1) * i + j));
+         }
+         fprintf(outFP, "\n");
       }
-      fprintf(outFP, "\n");
    }
    
    fclose(outFP);

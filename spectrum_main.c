@@ -318,19 +318,19 @@ void HashRead(uint64_t* filter, char* read, unsigned int n){
 	//printf("djb2: %lu ", i);
 	SetBit(filter, i, n);
 
-	i = MurmurHash64A(read, strlen(read), MSEED);
+	i = MurmurHash64A(read, L, MSEED);
 	//printf("Murmurhash: %lu", i);
 	SetBit(filter, i, n);
 	
-	i = APHash(read, strlen(read));
+	i = APHash(read, L);
 	//printf("APHash: %lu", i);
 	SetBit(filter, i, n);
 	
-	i = CityHash64(read, strlen(read));
+	i = CityHash64(read, L);
 	//printf("CityHash: %lu", i);
 	SetBit(filter, i, n);
 	
-	i = spooky_hash64(read, strlen(read), SSEED);
+	i = spooky_hash64(read, L, SSEED);
 	//printf("SpookyHash: %lu", i);
 	SetBit(filter, i, n);
 	
@@ -338,11 +338,11 @@ void HashRead(uint64_t* filter, char* read, unsigned int n){
 	//printf("FNVhash: %lu", i);
 	SetBit(filter, i, n);
 	
-	i = SDBMHash(read, strlen(read));
+	i = SDBMHash(read, L);
 	//printf("SDBMhash: %lu", i);
 	SetBit(filter, i, n);
 	
-	i = RSHash(read, strlen(read));
+	i = RSHash(read, L);
 	//printf("RShash: %lu", i);
 	SetBit(filter, i, n);
 	

@@ -197,10 +197,10 @@ __global__ void voting(char * reads, unsigned short int * voting_matrix_array, u
 	    /* Voting procedure
 	     * 
 	     */
-	    for(j=0; j<(READS_LENGTH-L); j++){
+	    for(j=0; j<(READS_LENGTH-L+1); j++){
 		    gpu_strncpy(subseq, read+j, L);  //take substring of length L
 		    subseq[L] = '\0';		    
-		    if(!(CheckHash(gpu_hashed_spectrum, subseq, spectrum_size))){  //begin voting procedure for non-solid tuples 
+		    if(!(CheckHash(gpu_hashed_spectrum, subseq, spectrum_size))){  //begin voting procedure for non-solid tuples
 			    for(int p=0; p<L; p++){
 				    for(c=0; c<BASES; c++){
 					    if(subseq[p] != bases[c]){
@@ -412,7 +412,7 @@ int main (int argc, char * argv[]) {
    //Execute kernel
    voting <<< inputDim/BLOCK_DIM/DATA_PER_THREAD, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, inputDim, gpu_hashed_spectrum, spectrum_size);   
    
-   /*
+   
    //DEBUG
    
    unsigned short int * v;
@@ -431,7 +431,8 @@ int main (int argc, char * argv[]) {
    }
    
    //END DEBUG
-   */
+   
+   
    
    
    /************* FIXING ***************/

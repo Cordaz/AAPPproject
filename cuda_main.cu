@@ -442,7 +442,7 @@ int main (int argc, char * argv[]) {
     */
    
    //Execute kernel
-   //fixing <<< inputDim/BLOCK_DIM/DATA_PER_THREAD, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, inputDim, gpu_hashed_spectrum, spectrum_size);
+   fixing <<< inputDim/BLOCK_DIM/DATA_PER_THREAD, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, inputDim, gpu_hashed_spectrum, spectrum_size);
    
    
    /*********** READ BACK ************************/

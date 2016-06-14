@@ -224,10 +224,7 @@ __global__ void voting(char * reads, unsigned short int * voting_matrix_array, u
 /***************** FIXING KERNEL ***************************/
 
 __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, unsigned int inputDim, uint64_t * gpu_hashed_spectrum, unsigned int spectrum_size) {
-   ushort2 trim_indexes;
-   trim_indexes.x = 0; //Starting index of longest substring
-   trim_indexes.y = 0; //End index of longest substring
-   unsigned short int i, h;
+   unsigned short int i,h,k;
    
    int idx = blockIdx.x * blockDim.x + threadIdx.x;
    
@@ -264,34 +261,18 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
       }
       
       gpu_strcpy(rc, read);
-      rc[couple.x] = bases[couple.y];
-      /*
-      for(i=0; i<couple.x; i++) {
-         rc[i] = *(read+i);
-      }
-      rc[i] = bases[couple.y];
-      for(i=couple.x+1; i<READS_LENGTH+1; i++) {
-         rc[i] = *(read+i);
-      }
       rc[READS_LENGTH] = '\0';
-      */
+      rc[couple.x] = bases[couple.y];
       
       corrected_flag=1;
       trimmed_flag=0;
       
-      for(j=0;j < (READS_LENGTH-(L+1)); j++) {
+      for(j=0;j < (READS_LENGTH-L+1); j++) {
          //Create tuple
-         gpu_strncpy(tuple, read+j, L);
+         gpu_strncpy(tuple, rc+j, L);
+         tuple[L] = '\0';
          if( !(CheckHash(gpu_hashed_spectrum, tuple, spectrum_size)) ) { /* Query bloom filter for tuple */
             corrected_flag = 0;
-           /* Check for trimming
-            * If current subsequence is longer than previous one then update
-            * Else the longest subsequence is already stored
-            */
-            if( (j+8 - trim_indexes.y+2) > (trim_indexes.y - trim_indexes.x) ) {
-               trim_indexes.x = trim_indexes.y+2;
-               trim_indexes.y = j + L - 1;
-            }
          }
          else {
             trimmed_flag = 1;
@@ -303,9 +284,27 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
          continue;
       }
       
+      bool flag=0;
       if(trimmed_flag) {
          //Trim read
-         gpu_strncpy(read, rc+trim_indexes.x, trim_indexes.y - trim_indexes.x);
+         for(k=0; k < READS_LENGTH-L+1 && !flag; k++) {
+            for(j=READS_LENGTH-k; j>L+1 && !flag; j--) {
+               gpu_strncpy(rc, read, j);
+               rc[j] = '\0';
+               //Check each tuple of shorter string
+               flag=1;
+               for(i=0; i<j-L+1; i++) {
+                  gpu_strncpy(tuple, read+i, L);
+                  tuple[L] = '\0';
+                  flag = flag && (CheckHash(gpu_hashed_spectrum, tuple, spectrum_size));
+               }
+               //Copy trimmered read
+               if(flag) {
+                  gpu_strncpy(read, rc, j);
+                  *(read+j) = '\0';
+               }
+            }
+         }
          continue;
       }
       
@@ -420,7 +419,7 @@ int main (int argc, char * argv[]) {
    v = (unsigned short int *)malloc(sizeof(unsigned short int) * inputDim * READS_LENGTH * BASES);
    HANDLE_ERROR(cudaMemcpy(v, gpu_voting_matrix, sizeof(unsigned short int) * inputDim * READS_LENGTH * BASES, cudaMemcpyDeviceToHost));
    
-   for(int k=0; k<1; k++) {
+   for(int k=0; k<inputDim; k++) {
       for(i=0; i<BASES; i++) {
          for(j=0; j<READS_LENGTH; j++) {
             printf("%3d", *(v + j*BASES + i));

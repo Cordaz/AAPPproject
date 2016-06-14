@@ -120,6 +120,8 @@ __shared__ char bases[BASES];
 __device__ ushort2 matrix_maximum(unsigned short int * v) {
    unsigned short int i, j, maximum=0;
    ushort2 couple;
+   couple.x=0;
+   couple.y=0;
    for(i=0; i<READS_LENGTH; i++) {
       for(j=0;j<BASES;j++) {
          if(*(v + i*BASES + j) > maximum) {
@@ -268,6 +270,7 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
       for(i=couple.x+1; i<READS_LENGTH+1; i++) {
          rc[i] = *(read+i);
       }
+      rc[READS_LENGTH] = '\0';
       
       corrected_flag=1;
       trimmed_flag=0;
@@ -278,7 +281,7 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
             tuple[i-j] = *(read+j);
          }
          tuple[L] = '\0';
-         if( !(CheckHash(gpu_hashed_spectrum, tuple, inputDim)) ) { /* Query bloom filter for tuple */
+         if( !(CheckHash(gpu_hashed_spectrum, tuple, spectrum_size)) ) { /* Query bloom filter for tuple */
             corrected_flag = 0;
            /* Check for trimming
             * If current subsequence is longer than previous one then update
@@ -301,7 +304,7 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
       
       if(trimmed_flag) {
          //Trim read
-         for(i=trim_indexes.x, j=0; i<trim_indexes.y; i++, j++) {
+         for(i=trim_indexes.x, j=0; i<trim_indexes.y && j<READS_LENGTH; i++, j++) {
             *(read+j) = rc[i];
          }
          *(read+j) = '\0';
@@ -412,7 +415,7 @@ int main (int argc, char * argv[]) {
    //Execute kernel
    voting <<< inputDim/BLOCK_DIM/DATA_PER_THREAD, BLOCK_DIM >>> (gpu_reads, gpu_voting_matrix, inputDim, gpu_hashed_spectrum, spectrum_size);   
    
-   
+   /*
    //DEBUG
    
    unsigned short int * v;
@@ -431,7 +434,7 @@ int main (int argc, char * argv[]) {
    }
    
    //END DEBUG
-   
+   */
    
    
    
@@ -449,7 +452,7 @@ int main (int argc, char * argv[]) {
    /*********** READ BACK ************************/
    
    HANDLE_ERROR(cudaMemcpy(reads, gpu_reads, sizeof(char) * inputDim * (READS_LENGTH+1), cudaMemcpyDeviceToHost));
-   
+      
    /*
    //DEBUG hashed_spectrum
    HANDLE_ERROR(cudaMemcpy(hashed_spectrum, gpu_hashed_spectrum, sizeof(uint64_t) * spectrum_size, cudaMemcpyDeviceToHost));

@@ -124,7 +124,7 @@ __device__ ushort2 matrix_maximum(unsigned short int * v) {
    couple.y=0;
    for(i=0; i<READS_LENGTH; i++) {
       for(j=0;j<BASES;j++) {
-         if(*(v + i*BASES + j) > maximum) {
+         if(*(v + i*BASES + j) >= maximum) {
             maximum = *(v + i*BASES + j);
             couple.x=i;
             couple.y=j;
@@ -263,6 +263,9 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
          continue; //read is already correct
       }
       
+      gpu_strcpy(rc, read);
+      rc[couple.x] = bases[couple.y];
+      /*
       for(i=0; i<couple.x; i++) {
          rc[i] = *(read+i);
       }
@@ -271,21 +274,19 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
          rc[i] = *(read+i);
       }
       rc[READS_LENGTH] = '\0';
+      */
       
       corrected_flag=1;
       trimmed_flag=0;
       
       for(j=0;j < (READS_LENGTH-(L+1)); j++) {
          //Create tuple
-         for(i=j; i<j + L; i++) {
-            tuple[i-j] = *(read+j);
-         }
-         tuple[L] = '\0';
+         gpu_strncpy(tuple, read+j, L);
          if( !(CheckHash(gpu_hashed_spectrum, tuple, spectrum_size)) ) { /* Query bloom filter for tuple */
             corrected_flag = 0;
            /* Check for trimming
             * If current subsequence is longer than previous one then update
-            * Else the longest subsequent is already stored
+            * Else the longest subsequence is already stored
             */
             if( (j+8 - trim_indexes.y+2) > (trim_indexes.y - trim_indexes.x) ) {
                trim_indexes.x = trim_indexes.y+2;
@@ -304,10 +305,7 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
       
       if(trimmed_flag) {
          //Trim read
-         for(i=trim_indexes.x, j=0; i<trim_indexes.y && j<READS_LENGTH; i++, j++) {
-            *(read+j) = rc[i];
-         }
-         *(read+j) = '\0';
+         gpu_strncpy(read, rc+trim_indexes.x, trim_indexes.y - trim_indexes.x);
          continue;
       }
       
@@ -422,7 +420,7 @@ int main (int argc, char * argv[]) {
    v = (unsigned short int *)malloc(sizeof(unsigned short int) * inputDim * READS_LENGTH * BASES);
    HANDLE_ERROR(cudaMemcpy(v, gpu_voting_matrix, sizeof(unsigned short int) * inputDim * READS_LENGTH * BASES, cudaMemcpyDeviceToHost));
    
-   for(int k=0; k<inputDim; k++) {
+   for(int k=0; k<1; k++) {
       for(i=0; i<BASES; i++) {
          for(j=0; j<READS_LENGTH; j++) {
             printf("%3d", *(v + j*BASES + i));
@@ -466,7 +464,7 @@ int main (int argc, char * argv[]) {
    
    for(i=0; i<inputDim; i++) {
       if(*(reads + (READS_LENGTH+1) * i) != '\0') { //If not discarded
-         for(j=1; j<READS_LENGTH && *(reads + (READS_LENGTH+1) * i + j) != '\0'; j++) {
+         for(j=0; j<READS_LENGTH && *(reads + (READS_LENGTH+1) * i + j) != '\0'; j++) {
             fprintf(outFP, "%c", *(reads + (READS_LENGTH+1) * i + j));
          }
          fprintf(outFP, "\n");

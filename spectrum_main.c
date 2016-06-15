@@ -48,6 +48,7 @@ void HashRead(uint64_t *, char *, unsigned int);
 
 void rm_newline(char *);
 void list_to_array(list_t *, char **);
+void list_to_arrayChar(list_t *, char *);
 list_t * add_elem(list_t *, char *);
 void free_list(list_t *);
 
@@ -65,7 +66,7 @@ int main (int argc, char * argv[]) {
    FILE * in;
    char buf[BUFFER+1];
    char tuple[L+1];
-   unsigned int dim_reads=0;
+   unsigned int inputDim=0;
    uint8_t counter[SPECTRUM_MAX_SIZE];
    for(i=0; i<SPECTRUM_MAX_SIZE; i++)
       counter[i] = 0;
@@ -80,7 +81,7 @@ int main (int argc, char * argv[]) {
             //printf("Read: %s, tuple:\n", buf);
             //Store read
             reads_list = add_elem(reads_list, buf);
-            dim_reads++;
+            inputDim++;
             
             //Check tuple
             for(i=0; i< (READS_LENGTH - L + 1); i++) {
@@ -99,19 +100,13 @@ int main (int argc, char * argv[]) {
    printf("Input file read\n");
    
    //Store reads in an array
-   char ** reads;
-   if(!(reads = (char **)malloc(sizeof(char *) * dim_reads))) {
+   char * reads;
+   if(!(reads = (char *)malloc(sizeof(char) * inputDim * (READS_LENGTH+1)))) {
       fprintf(stdout, "Error allocation\n");
       exit(1);
    }
-   for(i=0; i<dim_reads; i++) {
-      if(!(reads[i] = (char *)malloc(sizeof(char) * (READS_LENGTH+1)))) {
-         fprintf(stdout, "Error allocation\n");
-         exit(1);
-      }
-   }
    
-   list_to_array(reads_list, reads);
+   list_to_arrayChar(reads_list, reads);
    printf("Freeing reads_list\n");
    free_list(reads_list);
    printf("Freed reads_list\n");
@@ -157,9 +152,7 @@ int main (int argc, char * argv[]) {
    
    //Apply bloom filter
    printf("Applying bloom filter\n");
-   uint64_t * bloom = bloom_filter(tuples, spectrum_size);
-   
-   
+   uint64_t * hashed_spectrum = bloom_filter(tuples, spectrum_size);
    
    //Write out
    FILE * out;
@@ -171,7 +164,7 @@ int main (int argc, char * argv[]) {
    
    //Print data
    for(i=0; i<spectrum_size; i++) {
-      fprintf(out, "%lu\n", bloom[i]);
+      fprintf(out, "%lu\n", hashed_spectrum[i]);
    }
    
    fclose(out);
@@ -179,17 +172,16 @@ int main (int argc, char * argv[]) {
    out = fopen(argv[3], "w+");
    
    //Print size
-   fprintf(out, "%u\n", dim_reads);
+   fprintf(out, "%u\n", inputDim);
    
    //Print data
-   for(i=0; i<dim_reads; i++) {
-      fprintf(out, "%s\n", reads[i]);
+   int j;
+   for(i=0; i<inputDim; i++) {
+      fprintf(out, "%s\n", reads+i*(READS_LENGTH+1));
    }
    
    fclose(out);
    
-   for(i=0;i<dim_reads;i++)
-      free(reads[i]);
    free(reads);
    for(i=0;i<spectrum_size;i++)
       free(tuples[i]);
@@ -361,6 +353,19 @@ void list_to_array(list_t * head, char ** str_array) {
    }
 }
 
+void list_to_arrayChar(list_t * head, char * str_array) {
+   list_t * tmp = head;
+   int i=0, j;
+   while(tmp) {
+      for(j=0; j<READS_LENGTH; j++)
+         *(str_array + i*(READS_LENGTH+1) + j) = tmp->str[j];
+      *(str_array + i*(READS_LENGTH+1) + j) = '\0';
+      //printf("%s\n", str_array[i]);
+      tmp = tmp->next;
+      i++;
+   }
+}
+
 list_t * add_elem(list_t * head, char * str) {
    if(!head) {
       if(!(head = (list_t *)malloc(sizeof(list_t)))) {
@@ -372,14 +377,14 @@ list_t * add_elem(list_t * head, char * str) {
       return head;
    }
    
-   list_t * new;
-   if(!(new = (list_t *)malloc(sizeof(list_t)))) {
+   list_t * newElem;
+   if(!(newElem = (list_t *)malloc(sizeof(list_t)))) {
       fprintf(stdout, "Error: allocation\n");
       exit(1);
    }
-   strcpy(new->str, str);
-   new->next=head;
-   return new;
+   strcpy(newElem->str, str);
+   newElem->next=head;
+   return newElem;
 }
 
 void rm_newline(char * str) {

@@ -240,7 +240,8 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
    }
    __syncthreads();
    
-   char * read;
+   char * read_ptr;
+   char read[READS_LENGTH+1];
    unsigned short int * voting_matrix;
    char rc[READS_LENGTH+1];
    unsigned short int j;
@@ -251,7 +252,8 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
    for(h=0; h<DATA_PER_THREAD; h++) {
       if(idx + inputDim/DATA_PER_THREAD * h >= inputDim)
          return;
-      read = reads + (idx + inputDim/DATA_PER_THREAD * h) * (READS_LENGTH+1);
+      read_ptr = reads + (idx + inputDim/DATA_PER_THREAD * h) * (READS_LENGTH+1);
+      gpu_strcpy(read, read_ptr);
       voting_matrix = voting_matrix_array + (idx + inputDim/DATA_PER_THREAD * h) * READS_LENGTH * BASES;
       
       couple = matrix_maximum(voting_matrix);
@@ -280,16 +282,17 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
       }
       
       if(corrected_flag) {
-         gpu_strcpy(read, rc); //Return corrected read
+         gpu_strcpy(read_ptr, rc); //Return corrected read
          continue;
       }
       
       bool flag=0;
+      int max_length=0;
       if(trimmed_flag) {
          //Trim read
-         for(k=0; k < READS_LENGTH-L+1 && !flag; k++) {
+         for(k=0; k < READS_LENGTH-L+1; k++) {
             for(j=READS_LENGTH-k; j>L+1 && !flag; j--) {
-               gpu_strncpy(rc, read, j);
+               gpu_strncpy(rc, read+k, j);
                rc[j] = '\0';
                //Check each tuple of shorter string
                flag=1;
@@ -300,16 +303,20 @@ __global__ void fixing(char * reads, unsigned short int * voting_matrix_array, u
                }
                //Copy trimmered read
                if(flag) {
-                  gpu_strncpy(read, rc, j);
-                  *(read+j) = '\0';
+                  if(j-k > max_length) {
+                     gpu_strncpy(read_ptr, rc, j);
+                     *(read_ptr+j-k+1) = '\0';
+                     max_length = j-k;
+                  }
                }
             }
+            flag=0;
          }
          continue;
       }
       
       //Uncorrect read, return empty string
-      *(read) = '\0';
+      *(read_ptr) = '\0';
    }
 }
 
@@ -462,7 +469,7 @@ int main (int argc, char * argv[]) {
    FILE * outFP = fopen(argv[3], "w+");
    
    for(i=0; i<inputDim; i++) {
-      if(*(reads + (READS_LENGTH+1) * i) != '\0') { //If not discarded
+      if( 1/* *(reads + (READS_LENGTH+1) * i) != '\0' */) { //If not discarded
          for(j=0; j<READS_LENGTH && *(reads + (READS_LENGTH+1) * i + j) != '\0'; j++) {
             fprintf(outFP, "%c", *(reads + (READS_LENGTH+1) * i + j));
          }

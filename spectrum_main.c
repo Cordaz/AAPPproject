@@ -43,7 +43,7 @@ void increment_counter(uint8_t *, char *);
 void extract_tuple(unsigned int, char *);
 
 uint64_t * bloom_filter (char **, unsigned int);
-void SetBit(uint64_t *, int, unsigned int);
+void SetBit(uint64_t *, unsigned long, unsigned int);
 void HashRead(uint64_t *, char *, unsigned int);
 
 void rm_newline(char *);
@@ -291,7 +291,7 @@ uint64_t * bloom_filter (char ** spectrum, unsigned int n) {
 }
 
 //Sets bit into bloom filter
-void SetBit(uint64_t* filter, int i, unsigned int n){
+void SetBit(uint64_t* filter, unsigned long i, unsigned int n){
 	int k = i % n;
 	int pos = i % 64;
 	uint64_t bit = 1;
@@ -304,7 +304,7 @@ void SetBit(uint64_t* filter, int i, unsigned int n){
 
 //Takes the read and feeds it to hash functions
 void HashRead(uint64_t* filter, char* read, unsigned int n){
-	int i;
+	unsigned long i;
 	
 	i = djb2_hash((unsigned char*)read);
 	//printf("djb2: %lu ", i);

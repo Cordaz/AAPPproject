@@ -14,7 +14,7 @@
 
 #define PARAM 3 //input (bloom filter), input (reads), output
 #define BASES 4
-#define BLOCK_DIM 16
+#define BLOCK_DIM 128
 #define DATA_PER_THREAD 10
 #define READS_LENGTH 35
 #define L 10

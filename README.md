@@ -1,7 +1,9 @@
 # Sequencing error correction on High Throughtput Short Read (HTSR) data with spectral alignment on CUDA.
 
 Advanced Algorithm and Parallel Programming project, Politecnico di Milano
+
 Author: Brizzolari Cecilia (852399), Corneo Andrea (849793)
+
 Academic Year: 2015
 
 ###Structure
@@ -13,6 +15,7 @@ This program consists in two part:
 ###Compilation
 
 You could compile `spectrum_main.c` easily with GCC, remeber to include `spooky.c`, `city.c` and `hashes.c` contained in the subfolder `BloomFilter`.
+
 To compile `cuda_main.cu` you should use NVCC, for simplicity it includes all the hashing function, so it doesn't require any include.
 
 ###Copyright

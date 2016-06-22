@@ -45,7 +45,7 @@ struct spooky_state
 	unsigned char m_remainder;
 };
 
-__device__ void spooky_shorthash
+void spooky_shorthash
 (
 	const void *message,
 	size_t length,
@@ -53,21 +53,21 @@ __device__ void spooky_shorthash
 	uint64_t *hash2
 );
 
-__device__ void spooky_init
+void spooky_init
 (
 	struct spooky_state *state,
 	uint64_t hash1,
 	uint64_t hash2
 );
 
-__device__ void spooky_update
+void spooky_update
 (
 	struct spooky_state *state,
 	const void *msg,
 	size_t len
 );
 
-__device__ void spooky_final
+void spooky_final
 (
 	struct spooky_state *state,
 	uint64_t *hash1,
@@ -75,7 +75,7 @@ __device__ void spooky_final
 );
 
 //hash1/2 doubles as input parameter for seed1/2 and output for hash1/2
-__device__ void spooky_hash128
+void spooky_hash128
 (
 	const void *message,
 	size_t length,
@@ -83,14 +83,14 @@ __device__ void spooky_hash128
 	uint64_t *hash2
 );
 
-__device__ uint64_t spooky_hash64
+uint64_t spooky_hash64
 (
 	const void *message,
 	size_t len,
 	uint64_t seed
 );
 
-__device__ uint32_t spooky_hash32
+uint32_t spooky_hash32
 (
 	const void *message,
 	size_t len,

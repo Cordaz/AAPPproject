@@ -1,3 +1,15 @@
+//-----------------------------------------------------------------------------
+// MurmurHash3 was written by Austin Appleby, and is placed in the public
+// domain. The author hereby disclaims copyright to this source code.
+// 
+// https://github.com/aappleby/smhasher
+
+// Note - The x86 and x64 versions do _not_ produce the same results, as the
+// algorithms are optimized for their respective platforms. You can still
+// compile and run any of them on any platform, but your performance with the
+// non-native version will be less than optimal.
+
+
 #include <stdint.h>
 #include "hashes.h"
 
@@ -5,7 +17,7 @@ const uint64_t FNV_PRIME    = 1099511628211;
 const uint64_t OFFSET_BASIS = 14695981039346656037UL;
 
 //djb2 hash
-__device__ unsigned long djb2_hash(unsigned char *str){
+unsigned long djb2_hash(unsigned char *str){
     unsigned long hash = 5381;
     int c;
 
@@ -16,7 +28,7 @@ __device__ unsigned long djb2_hash(unsigned char *str){
 }
 
 //MurmurHash
-__device__ uint64_t MurmurHash64A ( const void * key, int len, unsigned int seed )
+uint64_t MurmurHash64A ( const void * key, int len, unsigned int seed )
 {
 	const uint64_t m = 0xc6a4a7935bd1e995;
 	const int r = 47;
@@ -60,7 +72,7 @@ __device__ uint64_t MurmurHash64A ( const void * key, int len, unsigned int seed
 } 
 
 //AP hash
-__device__ uint64_t APHash(char* str, unsigned int length) {
+uint64_t APHash(char* str, unsigned int length) {
 	uint64_t hash = 0xAAAAAAAA;
 	unsigned int i = 0;
 
@@ -74,7 +86,7 @@ __device__ uint64_t APHash(char* str, unsigned int length) {
 }
 
 //FNV hash
-__device__ uint64_t fnvhash(char * string){
+uint64_t fnvhash(char * string){
    uint64_t hash = OFFSET_BASIS;
    for(uint8_t * c = (uint8_t*)string; *c != 0; ++c){
       hash ^= *c;
@@ -84,7 +96,7 @@ __device__ uint64_t fnvhash(char * string){
 }
 
 //SDBM hash
-__device__ uint64_t SDBMHash(char* str, unsigned int length) {
+uint64_t SDBMHash(char* str, unsigned int length) {
 	uint64_t hash = 0;
 	unsigned int i = 0;
 
@@ -97,7 +109,7 @@ __device__ uint64_t SDBMHash(char* str, unsigned int length) {
 }
 
 //RS hash
-__device__ uint64_t RSHash(char* str, unsigned int length) {
+uint64_t RSHash(char* str, unsigned int length) {
 	unsigned int b = 378551;
 	unsigned int a = 63689;
 	uint64_t hash = 0;

@@ -20,7 +20,7 @@ To compile `cuda_main.cu` you should use NVCC, for simplicity it includes all th
 
 ###Copyright
 
-All the files contained in this repository, that are not linked esplicitly to other copyright, are released under GNU GPL v3 licenses. We refer to all the above file as "The Program".
+All the files contained in this repository, that are not linked esplicitly to other copyright, are released under [GNU GPL v3 licenses](https://www.gnu.org/licenses/gpl.html). We refer to all the above file as "The Program".
 
 All the files part of The Program will contain this declaration.
 
